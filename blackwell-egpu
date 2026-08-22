@@ -115,7 +115,7 @@ negotiate_optimal_link_speed() {
 set2() {
     # Mode 2: Autoryzacja eGPU przez boltctl i zapis nazwy
     local DEV_UUID
-    DEV_UUID=$(boltctl list 2>/dev/null | grep -B1 -E 'status:[[:space:]]+connected$' | grep -m1 "uuid:" | cut -d ':' -f2 | xargs || true)
+    DEV_UUID=$(boltctl list 2>/dev/null | grep -B5 -E 'status:[[:space:]]+connected$' | grep -m1 "uuid:" | cut -d ':' -f2 | xargs || true)
 
     if [ -n "$DEV_UUID" ]; then
         boltctl authorize "$DEV_UUID" 2>/dev/null || true

@@ -1,5 +1,3 @@
-Oto kompletny plik README.md gotowy do wklejenia w Kate i zapisania w projekcie:
-
 Markdown
 # ⚡ Blackwell eGPU Universal Manager (USB4 / TB4 / TB5)
 

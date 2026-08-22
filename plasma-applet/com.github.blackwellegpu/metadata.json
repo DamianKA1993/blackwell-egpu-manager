@@ -1,0 +1,19 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "DamianKA1993"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "Universal controller for Blackwell eGPU states over USB4/TB",
+        "Icon": "video-display",
+        "Id": "com.github.blackwellegpu",
+        "Name": "Blackwell eGPU Manager",
+        "Version": "3.0.0",
+        "Website": "https://github.com/DamianKA1993/blackwell-egpu-manager"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-MainScript": "ui/main.qml"
+}

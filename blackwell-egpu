@@ -1,0 +1,254 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Konfiguracja ścieżek i plików cache
+CACHE_DIR="/tmp/blackwell_egpu"
+STATE_FILE="$CACHE_DIR/mode"
+WAIT_FILE="$CACHE_DIR/wait"
+IGPU_FILE="$CACHE_DIR/igpu_name"
+EGPU_FILE="$CACHE_DIR/egpu_name"
+LINK_FILE="$CACHE_DIR/pcie_link"
+
+ACTION="${1:-status}"
+TARGET_MODE="${2:-}"
+
+# ==============================================================================
+# 1. INICJALIZACJA (Wykonywana WYŁĄCZNIE przy pierwszym uruchomieniu)
+# ==============================================================================
+if [ ! -d "$CACHE_DIR" ]; then
+    mkdir -p "$CACHE_DIR"
+    echo "0" > "$WAIT_FILE"
+
+    # Wykrycie i zapis nazwy iGPU
+    IGPU_NAME=$(lspci | grep -iE "VGA|3D" | grep -iE "intel|amd|advanced micro devices" | head -n1 | cut -d ':' -f3 | xargs || true)
+    echo "${IGPU_NAME:-Integrated Graphics}" > "$IGPU_FILE"
+
+    # Weryfikacja stanu początkowego przez boltctl
+    BOLT_INFO=$(boltctl list 2>/dev/null || true)
+
+    if echo "$BOLT_INFO" | grep -Eq 'status:[[:space:]]+authorized$'; then
+        EGPU_NAME=$(echo "$BOLT_INFO" | grep -m1 "name:" | cut -d ':' -f2 | xargs || true)
+        echo "${EGPU_NAME:-eGPU Device}" > "$EGPU_FILE"
+        echo "2" > "$STATE_FILE"
+    elif echo "$BOLT_INFO" | grep -Eq 'status:[[:space:]]+connected$'; then
+        EGPU_NAME=$(echo "$BOLT_INFO" | grep -m1 "name:" | cut -d ':' -f2 | xargs || true)
+        echo "${EGPU_NAME:-eGPU Device}" > "$EGPU_FILE"
+        echo "1" > "$STATE_FILE"
+    else
+        echo "0" > "$STATE_FILE"
+    fi
+fi
+
+# ==============================================================================
+# 2. SZYBKA WERYFIKACJA POŁĄCZENIA W SYSFS (Zero-Fork / Polling)
+# ==============================================================================
+# Wykrywanie urządzeń podrzędnych Thunderbolt/USB4 (wykluczenie wbudowanych root switchy kończących się na -0)
+TB_DEVICE=$(ls -d /sys/bus/thunderbolt/devices/*-* 2>/dev/null | grep -vE -- '-0$' | head -n1 || true)
+
+if [ -z "$TB_DEVICE" ]; then
+    echo "0" > "$STATE_FILE"
+    echo "0" > "$WAIT_FILE"
+    rm -f "$EGPU_FILE" "$LINK_FILE"
+
+    if [ "$ACTION" = "status" ]; then
+        printf '{"mode":0,"wait":0,"igpu":"%s","egpu":"None","link":"N/A"}\n' "$(<"$IGPU_FILE")"
+    fi
+    exit 0
+else
+    # Jeśli stan w pamięci to 0, a urządzenie zostało fizycznie podpięte (Hot-Plug)
+    CURRENT_STATE=$(cat "$STATE_FILE" 2>/dev/null || echo "0")
+    if [ "$CURRENT_STATE" = "0" ]; then
+        if [ -f "$TB_DEVICE/authorized" ] && [ "$(<"$TB_DEVICE/authorized")" = "1" ]; then
+            echo "2" > "$STATE_FILE"
+        else
+            echo "1" > "$STATE_FILE"
+        fi
+
+        if [ -f "$TB_DEVICE/device_name" ]; then
+            cat "$TB_DEVICE/device_name" > "$EGPU_FILE"
+        fi
+    fi
+fi
+
+# ==============================================================================
+# 3. OBSŁUGA POLECENIA STATUS (Dla apletu co 2 sekundy)
+# ==============================================================================
+if [ "$ACTION" = "status" ]; then
+    CURRENT_MODE=$(cat "$STATE_FILE" 2>/dev/null || echo "1")
+    IS_WAITING=$(cat "$WAIT_FILE" 2>/dev/null || echo "0")
+    IGPU_NAME=$(cat "$IGPU_FILE" 2>/dev/null || echo "Integrated Graphics")
+    EGPU_NAME=$(cat "$EGPU_FILE" 2>/dev/null || echo "eGPU Device")
+    PCIE_LINK=$(cat "$LINK_FILE" 2>/dev/null || echo "N/A")
+
+    printf '{"mode":%s,"wait":%s,"igpu":"%s","egpu":"%s","link":"%s"}\n' \
+        "$CURRENT_MODE" "$IS_WAITING" "$IGPU_NAME" "$EGPU_NAME" "$PCIE_LINK"
+    exit 0
+fi
+
+# ==============================================================================
+# 4. FUNKCJE POMOCNICZE NEGOCJACJI MAGISTRALI
+# ==============================================================================
+negotiate_optimal_link_speed() {
+    local GPU_PCI="$1"
+    local PARENT_PORT="$2"
+
+    local gpu_speed parent_speed
+    gpu_speed=$(lspci -s "$GPU_PCI" -vv 2>/dev/null | awk '/LnkCap:/ {for(i=1;i<=NF;i++) if($i ~ /Speed/) print $(i+1)}' | tr -dc '0-9' || true)
+    parent_speed=$(lspci -s "$PARENT_PORT" -vv 2>/dev/null | awk '/LnkCap:/ {for(i=1;i<=NF;i++) if($i ~ /Speed/) print $(i+1)}' | tr -dc '0-9' || true)
+
+    local min_speed=${gpu_speed:-16}
+    if [ -n "$parent_speed" ] && [ "$parent_speed" -lt "$min_speed" ]; then
+        min_speed=$parent_speed
+    fi
+
+    case "$min_speed" in
+        32*) echo "0025" ;; # Gen5
+        16*) echo "0024" ;; # Gen4
+        8*)  echo "0023" ;; # Gen3
+        *)   echo "0024" ;; # Bezpieczny standard
+    esac
+}
+
+# ==============================================================================
+# 5. FUNKCJE WYKONAWCZE TRYBÓW (SET)
+# ==============================================================================
+set2() {
+    # Mode 2: Autoryzacja eGPU przez boltctl i zapis nazwy
+    local DEV_UUID
+    DEV_UUID=$(boltctl list 2>/dev/null | grep -B1 -E 'status:[[:space:]]+connected$' | grep -m1 "uuid:" | cut -d ':' -f2 | xargs || true)
+
+    if [ -n "$DEV_UUID" ]; then
+        boltctl authorize "$DEV_UUID" 2>/dev/null || true
+    fi
+
+    local BOLT_INFO
+    BOLT_INFO=$(boltctl list 2>/dev/null || true)
+    if echo "$BOLT_INFO" | grep -Eq 'status:[[:space:]]+authorized$'; then
+        local EGPU_NAME
+        EGPU_NAME=$(echo "$BOLT_INFO" | grep -m1 "name:" | cut -d ':' -f2 | xargs || true)
+        echo "${EGPU_NAME:-eGPU Device}" > "$EGPU_FILE"
+    fi
+
+    echo "2"
+}
+
+set3() {
+    # Mode 3: Tryb hybrydowy (iGPU + eGPU / moduły nvidia, retraining PCIe)
+    if ! lsmod | grep -q "^nvidia "; then
+        fuser -k /dev/nvidia* 2>/dev/null || true
+        modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia 2>/dev/null || true
+
+        if command -v boltctl >/dev/null 2>&1; then
+            local PENDING_UUIDS
+            PENDING_UUIDS=$(boltctl list 2>/dev/null | awk '/ ● / {uuid=$2} /status:[[:space:]]+(connected|authorizing)/ {print uuid}' || true)
+            for uuid in $PENDING_UUIDS; do
+                boltctl enroll --policy auto "$uuid" 2>/dev/null || boltctl authorize "$uuid" 2>/dev/null || true
+            done
+        fi
+
+        touch /tmp/egpu_allow
+        echo 1 > /sys/bus/pci/rescan 2>/dev/null || true
+        udevadm settle --timeout=2 2>/dev/null || true
+        rm -f /tmp/egpu_allow
+
+        local GPU_FULL_PCI
+        GPU_FULL_PCI=$(lspci -D -d 10de: -nn 2>/dev/null | grep -iE "VGA|3D" | awk '{print $1}' | head -n 1 || true)
+        if [ -z "$GPU_FULL_PCI" ]; then
+            echo "2"
+            return 0
+        fi
+
+        local PCI_TREE BRIDGE_LIST TOTAL_NODES PARENT_PORT TARGET_HEX
+        PCI_TREE=$(lspci -D -PP -s "$GPU_FULL_PCI" 2>/dev/null | awk '{print $1}' || true)
+        IFS="/" read -ra BRIDGE_LIST <<< "$PCI_TREE"
+        TOTAL_NODES=${#BRIDGE_LIST[@]}
+
+        echo performance > /sys/module/pcie_aspm/parameters/policy 2>/dev/null || true
+
+        for node in "${BRIDGE_LIST[@]}"; do
+            setpci -s "$node" CAP_EXP+10.w=0000 2>/dev/null || true
+            setpci -s "$node" ECAP_1E+04.l=00000000 2>/dev/null || true
+        done
+
+        if [ "$TOTAL_NODES" -ge 2 ]; then
+            PARENT_PORT="${BRIDGE_LIST[$((TOTAL_NODES - 2))]}"
+            TARGET_HEX=$(negotiate_optimal_link_speed "$GPU_FULL_PCI" "$PARENT_PORT")
+
+            setpci -s "$PARENT_PORT" CAP_EXP+30.w="$TARGET_HEX:002f" 2>/dev/null || true
+            setpci -s "$GPU_FULL_PCI" CAP_EXP+30.w="$TARGET_HEX:002f" 2>/dev/null || true
+            setpci -s "$PARENT_PORT" CAP_EXP+10.w=0020:0020 2>/dev/null || true
+
+            local retries=0
+            while [ $retries -lt 30 ]; do
+                local lnksta val
+                lnksta=$(setpci -s "$PARENT_PORT" CAP_EXP+12.w 2>/dev/null || echo "0")
+                val=$(( 16#${lnksta:-0} ))
+                if [ $(( val & 0x0800 )) -eq 0 ] && [ $(( val & 0x2000 )) -ne 0 ]; then
+                    break
+                fi
+                sleep 0.1
+                retries=$((retries + 1))
+            done
+        fi
+
+        sleep 0.5
+        modprobe nvidia NVreg_DynamicPowerManagement=0x00 2>/dev/null || true
+
+        if [ -n "${PARENT_PORT:-}" ]; then
+            setpci -s "$PARENT_PORT" CAP_EXP+30.w="$TARGET_HEX:002f" 2>/dev/null || true
+        fi
+
+        modprobe nvidia_modeset nvidia_drm nvidia_uvm 2>/dev/null || true
+        udevadm settle || true
+
+        nvidia-smi -pm 1 >/dev/null 2>&1 || true
+
+        local MAX_GPU MAX_MEM
+        MAX_GPU=$(nvidia-smi --query-gpu=clocks.max.graphics --format=csv,noheader,nounits 2>/dev/null | head -n 1 | tr -d '[:space:]' || echo "3090")
+        MAX_MEM=$(nvidia-smi --query-gpu=clocks.max.memory --format=csv,noheader,nounits 2>/dev/null | head -n 1 | tr -d '[:space:]' || echo "14001")
+
+        nvidia-smi --auto-boost-permission=0 >/dev/null 2>&1 || true
+        nvidia-smi --lock-gpu-clocks="2000,${MAX_GPU:-3090}" >/dev/null 2>&1 || true
+        nvidia-smi --lock-memory-clocks="${MAX_MEM:-14001},${MAX_MEM:-14001}" >/dev/null 2>&1 || true
+    fi
+
+    # Zapis aktualnego linku PCIe do cache
+    local CURRENT_LINK
+    CURRENT_LINK=$(lspci -d 10de: -vv 2>/dev/null | awk '/LnkSta:/ {for(i=1;i<=NF;i++) if($i ~ /Speed/) print $(i+1)}' | head -n1 || echo "N/A")
+    echo "${CURRENT_LINK:-N/A}" > "$LINK_FILE"
+
+    echo "3"
+}
+
+set4() {
+    # Mode 4: Tryb eGPU-only (TODO: zostanie zaimplementowane w przyszłości)
+    echo "4"
+}
+
+# ==============================================================================
+# 6. OBSŁUGA POLECENIA SET (Kaskadowe przejście w górę z flagą wait)
+# ==============================================================================
+if [ "$ACTION" = "set" ]; then
+    if [[ ! "$TARGET_MODE" =~ ^[2-4]$ ]]; then
+        exit 0
+    fi
+
+    CURRENT=$(cat "$STATE_FILE" 2>/dev/null || echo "1")
+
+    if [ "$CURRENT" -lt "$TARGET_MODE" ]; then
+        echo "1" > "$WAIT_FILE"
+        trap 'echo "0" > "$WAIT_FILE"' EXIT INT TERM
+
+        NEXT=$((CURRENT + 1))
+        for step in $(seq "$NEXT" "$TARGET_MODE"); do
+            case "$step" in
+                2) RESULT=$(set2) ;;
+                3) RESULT=$(set3) ;;
+                4) RESULT=$(set4) ;;
+            esac
+            echo "$RESULT" > "$STATE_FILE"
+        done
+    fi
+
+    exit 0
+fi

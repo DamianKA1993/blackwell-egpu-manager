@@ -1,4 +1,3 @@
-Markdown
 # ⚡ Blackwell eGPU Universal Manager (USB4 / TB4 / TB5)
 
 Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and display switching for **NVIDIA Blackwell (RTX 50xx)** eGPUs on Linux (KDE Plasma 6 Wayland / CachyOS / Arch Linux).

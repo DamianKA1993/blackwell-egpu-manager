@@ -2,6 +2,11 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.1.1] - 2026-08-22
+fixed authorization
+---
+
+
 ## [1.1.0] - 2026-08-22
 
 ### Architecture & Installation

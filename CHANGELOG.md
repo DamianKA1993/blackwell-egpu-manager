@@ -2,10 +2,33 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
-## [1.1.1] - 2026-08-22
-fixed authorization
+## [1.2.0] - 2026-08-23
+
+### Core Features & Hardware Management
+* **Experimental iGPU Disablement (Mode 4 / eGPU Only)**: Added full support for hot-unbinding and removing the host iGPU (and its associated processor audio endpoints) directly from the PCI bus tree to force dedicated eGPU operation. 
+  * *Notice: Disabling the iGPU at runtime is highly experimental. Proceed with caution.*
+* **Screen Management Integration**: Integrated a direct shortcut to KDE Display Settings (`kcmshell6 kcm_kscreen`) for seamless monitor layout configuration when entering dedicated modes.
+
+### Internationalization & Localization (i18n)
+* **Custom Lightweight i18n Engine (`i18n.js`)**: Implemented an in-applet JavaScript localization system (`.pragma library`) for Plasma 6, avoiding external Gettext/compiled `.mo` catalog issues.
+* **Multi-Language Support**: Added built-in translation dictionaries for 10 languages:
+  * Polish (`pl`), German (`de`), Spanish (`es`), French (`fr`), Italian (`it`), Portuguese (`pt`), Ukrainian (`uk`), Czech (`cs`), Japanese (`ja`), and Simplified Chinese (`zh`).
+* **System Locale Auto-Detection**: Configured `i18n.js` to automatically detect the host desktop locale via `Qt.locale().name` with seamless English fallback for unlisted locales.
+* **Bilingual Backend Documentation**: Updated the `blackwell-egpu` core CLI script with structured bilingual (English & Polish) code comments across all initialization, hardware verification, bus retraining, and mode-switching blocks.
+
+### Installer (`install.sh`)
+* **Interactive Localization Prompt**: Added an interactive step listing all supported languages and allowing users to enable auto-detected multi-language UI or enforce default English.
+* **Streamlined English Translation**: Fully translated all terminal logs, setup notices, error prompts, and warnings to standard English for upstream GitHub compatibility.
+
+### KDE Plasma 6 Applet (`com.github.blackwellegpu`)
+* **Dynamic String Wrapping**: Integrated `root.tr()` wrappers across all UI components, status headers, buttons, and safety alerts in `main.qml`.
+
 ---
 
+## [1.1.1] - 2026-08-22
+fixed authorization
+
+---
 
 ## [1.1.0] - 2026-08-22
 

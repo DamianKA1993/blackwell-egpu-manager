@@ -4,22 +4,27 @@ import QtQuick.Controls as QQC2
 import org.kde.plasma.plasmoid
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.plasma5support as P5Support
+import "i18n.js" as I18n
 
 PlasmoidItem {
     id: root
 
+    function tr(text, param) {
+        return I18n.t(text, param);
+    }
+
     preferredRepresentation: compactRepresentation
 
-    // Wymiary bazowe widżetu
     implicitWidth: Kirigami.Units.gridUnit * 24
     implicitHeight: Kirigami.Units.gridUnit * 24
 
-    // Stan sprzętowy i dane JSON
     property bool initialLoaded: false
     property int currentMode: 0
     property bool isWaiting: false
     property string igpuName: "Integrated Graphics"
+    property string igpuName2: "Integrated GPU"
     property string egpuName: "None"
+    property string egpuName2: "None"
     property string pcieLink: "N/A"
 
     P5Support.DataSource {
@@ -36,7 +41,9 @@ PlasmoidItem {
                     root.currentMode = parsed.mode;
                     root.isWaiting = (parsed.wait === 1);
                     root.igpuName = parsed.igpu;
+                    root.igpuName2 = parsed.igpu2 || parsed.igpu;
                     root.egpuName = parsed.egpu;
+                    root.egpuName2 = parsed.egpu2 || parsed.egpu;
                     root.pcieLink = parsed.link;
                     root.initialLoaded = true;
                 } catch(e) {
@@ -52,6 +59,10 @@ PlasmoidItem {
 
         function setMode(targetMode) {
             connectSource("sudo blackwell-egpu set " + targetMode);
+        }
+
+        function openScreenManager() {
+            connectSource("kcmshell6 kcm_kscreen");
         }
     }
 
@@ -73,7 +84,6 @@ PlasmoidItem {
         backend.refresh();
     }
 
-    // Ikona na pasku zadań
     compactRepresentation: MouseArea {
         anchors.fill: parent
         onClicked: root.expanded = !root.expanded
@@ -83,7 +93,6 @@ PlasmoidItem {
         }
     }
 
-    // Główne okno ze stałą geometrią
     fullRepresentation: ColumnLayout {
         implicitWidth: Kirigami.Units.gridUnit * 24
         implicitHeight: Kirigami.Units.gridUnit * 24
@@ -93,9 +102,8 @@ PlasmoidItem {
         Layout.preferredHeight: Kirigami.Units.gridUnit * 24
         spacing: Kirigami.Units.largeSpacing
 
-        // Tytuł
         QQC2.Label {
-            text: "Blackwell eGPU Manager"
+            text: root.tr("Blackwell eGPU Manager")
             font.bold: true
             font.pixelSize: Kirigami.Units.gridUnit * 0.9
             Layout.fillWidth: true
@@ -105,7 +113,6 @@ PlasmoidItem {
             Layout.fillWidth: true
         }
 
-        // Ekran ładowania
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -121,14 +128,13 @@ PlasmoidItem {
             }
 
             QQC2.Label {
-                text: "Checking hardware state..."
+                text: root.tr("Checking hardware state...")
                 font.pixelSize: Kirigami.Units.gridUnit * 0.8
                 opacity: 0.6
                 Layout.alignment: Qt.AlignHCenter
             }
         }
 
-        // Główna zawartość
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -141,7 +147,7 @@ PlasmoidItem {
                 spacing: Kirigami.Units.smallSpacing
 
                 QQC2.Label {
-                    text: "iGPU"
+                    text: root.tr("iGPU")
                     font.bold: true
                     font.pixelSize: Kirigami.Units.gridUnit * 0.75
                     opacity: 0.7
@@ -168,7 +174,7 @@ PlasmoidItem {
                     spacing: 2
 
                     QQC2.Label {
-                        text: root.igpuName
+                        text: root.igpuName2
                         font.bold: true
                         font.pixelSize: Kirigami.Units.gridUnit * 0.8
                         wrapMode: Text.Wrap
@@ -177,7 +183,16 @@ PlasmoidItem {
                     }
 
                     QQC2.Label {
-                        text: root.currentMode === 4 ? "Status: Inactive" : (root.currentMode === 3 ? "Status: Primary Display" : "Status: Active")
+                        text: root.tr("Device: %1", root.igpuName)
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.7
+                        opacity: 0.5
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                        visible: root.igpuName !== "" && root.igpuName !== root.igpuName2
+                    }
+
+                    QQC2.Label {
+                        text: root.currentMode === 4 ? root.tr("Status: Inactive") : (root.currentMode === 3 ? root.tr("Status: Primary Display") : root.tr("Status: Active"))
                         font.pixelSize: Kirigami.Units.gridUnit * 0.75
                         opacity: 0.6
                     }
@@ -190,7 +205,7 @@ PlasmoidItem {
                 spacing: Kirigami.Units.smallSpacing
 
                 QQC2.Label {
-                    text: "eGPU"
+                    text: root.tr("eGPU")
                     font.bold: true
                     font.pixelSize: Kirigami.Units.gridUnit * 0.75
                     opacity: 0.7
@@ -217,7 +232,11 @@ PlasmoidItem {
                     spacing: 2
 
                     QQC2.Label {
-                        text: root.currentMode === 0 ? "No Blackwell eGPU found" : root.egpuName
+                        text: {
+                            if (root.currentMode === 0) return root.tr("No Blackwell eGPU found");
+                            if (root.egpuName2 !== "None" && root.egpuName2 !== "NVIDIA Graphics" && root.egpuName2 !== "") return root.egpuName2;
+                            return root.egpuName;
+                        }
                         font.bold: root.currentMode !== 0
                         font.pixelSize: Kirigami.Units.gridUnit * 0.8
                         wrapMode: Text.Wrap
@@ -226,7 +245,23 @@ PlasmoidItem {
                     }
 
                     QQC2.Label {
-                        text: "Speed: " + (root.pcieLink !== "" && root.pcieLink !== "N/A" ? root.pcieLink : "N/A")
+                        text: root.tr("Box: %1", root.egpuName)
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.7
+                        opacity: 0.5
+                        wrapMode: Text.Wrap
+                        Layout.fillWidth: true
+                        visible: root.currentMode !== 0 && root.egpuName2 !== "None" && root.egpuName2 !== "" && root.egpuName2 !== root.egpuName
+                    }
+
+                    QQC2.Label {
+                        text: root.tr("Authorized: %1", root.currentMode >= 2 ? root.tr("yes") : root.tr("no"))
+                        font.pixelSize: Kirigami.Units.gridUnit * 0.7
+                        opacity: 0.6
+                        visible: root.currentMode !== 0
+                    }
+
+                    QQC2.Label {
+                        text: root.tr("Speed: %1", (root.pcieLink !== "" && root.pcieLink !== "N/A" ? root.pcieLink : "N/A"))
                         font.pixelSize: Kirigami.Units.gridUnit * 0.75
                         font.bold: root.currentMode >= 3
                         color: root.currentMode >= 3 ? "#27ae60" : Kirigami.Theme.textColor
@@ -236,12 +271,12 @@ PlasmoidItem {
 
                     QQC2.Label {
                         text: {
-                            if (root.currentMode === 0) return "Status: Disconnected";
-                            if (root.currentMode === 1) return "Status: Unauthorized (USB4)";
-                            if (root.currentMode === 2) return "Status: Standby (Ready)";
-                            if (root.currentMode === 3) return "Status: Hybrid Offload";
-                            if (root.currentMode === 4) return "Status: Dedicated Primary";
-                            return "Status: Unknown";
+                            if (root.currentMode === 0) return root.tr("Status: Disconnected");
+                            if (root.currentMode === 1) return root.tr("Status: Unauthorized (USB4)");
+                            if (root.currentMode === 2) return root.tr("Status: Standby (Ready)");
+                            if (root.currentMode === 3) return root.tr("Status: Hybrid Offload");
+                            if (root.currentMode === 4) return root.tr("Status: Dedicated Primary");
+                            return root.tr("Status: Unknown");
                         }
                         font.pixelSize: Kirigami.Units.gridUnit * 0.75
                         opacity: 0.6
@@ -263,28 +298,60 @@ PlasmoidItem {
                 QQC2.Button {
                     Layout.alignment: Qt.AlignHCenter
                     visible: root.currentMode === 1
-                    text: "Authorize"
+                    text: root.tr("Authorize")
                     icon.name: "security-high"
                     enabled: !root.isWaiting
                     onClicked: backend.setMode(2)
                 }
 
-                QQC2.Button {
+                RowLayout {
                     Layout.alignment: Qt.AlignHCenter
+                    spacing: Kirigami.Units.smallSpacing
                     visible: root.currentMode >= 2
-                    text: "Connect eGPU"
-                    icon.name: root.currentMode === 3 ? "dialog-ok" : "network-connect"
-                    enabled: root.currentMode === 2 && !root.isWaiting
-                    onClicked: backend.setMode(3)
+
+                    QQC2.Button {
+                        text: root.tr("Connect eGPU")
+                        icon.name: root.currentMode === 3 ? "dialog-ok" : "network-connect"
+                        enabled: root.currentMode === 2 && !root.isWaiting
+                        onClicked: backend.setMode(3)
+                    }
+
+                    QQC2.Button {
+                        visible: root.currentMode === 3
+                        text: root.tr("Screen Manager")
+                        icon.name: "preferences-desktop-display"
+                        onClicked: backend.openScreenManager()
+                    }
                 }
 
-                QQC2.Button {
+                RowLayout {
                     Layout.alignment: Qt.AlignHCenter
+                    spacing: Kirigami.Units.smallSpacing
                     visible: root.currentMode >= 2
-                    text: "eGPU Only"
-                    icon.name: root.currentMode === 4 ? "dialog-ok" : "video-display"
-                    enabled: (root.currentMode === 2 || root.currentMode === 3) && !root.isWaiting
-                    onClicked: backend.setMode(4)
+
+                    QQC2.Button {
+                        text: root.tr("eGPU Only (disconnect iGPU)")
+                        icon.name: root.currentMode === 4 ? "dialog-ok" : "video-display"
+                        enabled: (root.currentMode === 2 || root.currentMode === 3) && !root.isWaiting
+                        onClicked: backend.setMode(4)
+                    }
+
+                    QQC2.Button {
+                        visible: root.currentMode === 4
+                        text: root.tr("Screen Manager")
+                        icon.name: "preferences-desktop-display"
+                        onClicked: backend.openScreenManager()
+                    }
+                }
+
+                QQC2.Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: Kirigami.Units.smallSpacing
+                    visible: root.currentMode >= 3
+                    text: root.tr("Warning: Disabling the iGPU is experimental. Proceed at your own risk.")
+                    font.italic: true
+                    font.pixelSize: Kirigami.Units.gridUnit * 0.65
+                    opacity: 0.5
                 }
             }
 

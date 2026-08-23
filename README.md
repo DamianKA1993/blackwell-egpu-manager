@@ -2,7 +2,12 @@
 
 Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and display switching for **NVIDIA Blackwell (RTX 50xx)** eGPUs on Linux (KDE Plasma 6 Wayland / CachyOS / Arch Linux).
 
-![Preview](assets/preview.png)
+## 💡 Important Notes (Intel Platform & First-Time Setup)
+
+* **Intel Cold-Plug Warning**: On Intel host platforms, connecting the eGPU before powering on the system (cold-plug) may cause PCIe bridge enumeration conflicts, leading to applet initialization errors (such as NVML failing to detect the GPU in early boot). It is strongly recommended to connect/power on the eGPU after the system has fully booted into the desktop.
+* **Post-Installation Reboot**: The installer deploys custom udev rules to prevent PCIe link stalls and improper driver auto-binding. A **system reboot is required** after running `install.sh` for these rules to fully take effect and ensure a clean, fixed link negotiation.
+
+![Authorization Mode](assets/preview.jpg)
 
 ---
 
@@ -16,9 +21,19 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
   * **Mode 1 (Unauthorized)**: Device detected via USB4/Thunderbolt, awaiting host authorization.
   * **Mode 2 (Standby / Ready)**: Controller authorized, card recognized on PCIe bus and kept in low-power standby (D3cold).
   * **Mode 3 (Hybrid Offload / PRIME)**: Active iGPU runs desktop displays while RTX 5060 Ti handles on-demand GPU offloading (`prime-run` / CUDA / Vulkan).
-  * **Mode 4 (Dedicated Primary)**: Dedicated GPU rendering session for external display setups.
-* **Modular Interactive Installer**: Interactive setup script with independent steps for udev rules, sudoers privileges, and desktop widget deployment.
-* **Native KDE Plasma 6 Applet**: Standalone Plasmoid with fixed proportions ($24 \times 24\ \text{gridUnit}$), live link-speed badge, and vertically centered control buttons.
+  * **Mode 4 (Dedicated Primary / eGPU Only)**: Dedicated GPU rendering session for external display setups with experimental runtime iGPU PCI-bus removal.
+* **Multi-Language Support (i18n)**: Built-in localization support for 10 languages (`en`, `pl`, `de`, `es`, `fr`, `it`, `pt`, `uk`, `cs`, `ja`, `zh`) with automatic desktop locale detection and fallback handling.
+* **KDE Display Settings Integration**: Instant one-click launcher for KDE Screen Management (`kcm_kscreen`) directly from the widget.
+* **Modular Interactive Installer & Uninstaller**: Clean Bash wizards with optional udev rule management, sudoers configuration, and desktop widget deployment.
+* **Native KDE Plasma 6 Applet**: Standalone Plasmoid with fixed proportions (24x24 gridUnit), live link-speed badge, and vertically centered control buttons.
+
+---
+
+![Intel Workflow](assets/preview2.jpg)
+
+## ⚠️ Experimental Feature Warning
+
+> **Mode 4 (eGPU Only / Disable iGPU)** dynamically removes the integrated GPU and its associated audio controller directly from the PCI tree (`/sys/bus/pci/devices/*/remove`). This forces KDE Plasma and Wayland to render exclusively on the external GPU. While tested and functional, runtime iGPU bus removal is **highly experimental**. Use at your own risk.
 
 ---
 
@@ -38,31 +53,33 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ---
 
-## 🛠️ Quick Installation
+![AMD Workflow](assets/preview3.jpg)
+
+## 🛠️ Installation
 
 Clone the repository and run the interactive installer as a regular user:
 
 ```bash
-git clone [https://github.com/DamianKA1993/blackwell-egpu-manager.git](https://github.com/DamianKA1993/blackwell-egpu-manager.git)
+git clone https://github.com/DamianKA1993/blackwell-egpu-manager.git
 cd blackwell-egpu-manager
 chmod +x install.sh uninstall.sh
 ./install.sh
+```
+
 The installer will interactively guide you through:
+1. Verifying NVIDIA Open kernel module presence.
+2. Installing the `/usr/local/bin/blackwell-egpu` backend CLI.
+3. Setting up passwordless sudoers permissions for state switching.
+4. *(Optional)* Deploying udev rules to prevent PCIe link stalls during hot-plug.
+5. *(Optional)* Installing the KDE Plasma 6 widget with optional multi-language localization.
 
-Verifying NVIDIA Open kernel module presence.
+---
 
-Installing the /usr/local/bin/blackwell-egpu backend CLI.
+## 🖥️ CLI Usage
 
-Setting up passwordless sudoers permissions for state switching.
-
-(Optional) Deploying udev rules to prevent PCIe link stalls during hot-plug.
-
-(Optional) Deploying the KDE Plasma 6 widget to ~/.local/share/plasma/plasmoids.
-
-🖥️ CLI Usage
 The backend CLI can be managed independently from scripts, keybindings, or terminals:
 
-Bash
+```bash
 # Query current state (returns JSON formatted status)
 blackwell-egpu status
 
@@ -72,15 +89,22 @@ sudo blackwell-egpu set 2
 # Switch to Hybrid Offload (Mode 3: PRIME render offload)
 sudo blackwell-egpu set 3
 
-# Switch to Dedicated eGPU Mode (Mode 4: Primary eGPU display)
+# Switch to Dedicated eGPU Mode (Mode 4: Disconnect iGPU / Primary eGPU)
 sudo blackwell-egpu set 4
+```
 
-# Put eGPU into Standby / Detach (Mode 2)
-sudo blackwell-egpu set 2
-🗑️ Uninstallation
-To cleanly remove all installed binaries, udev configurations, sudoers rules, and the Plasma applet:
+---
 
-Bash
+## 🗑️ Uninstallation
+
+To cleanly remove all installed binaries, optional udev rules, sudoers privileges, temporary caches, and the Plasma applet:
+
+```bash
 ./uninstall.sh
-📄 License
-Distributed under the MIT License. See LICENSE for more information.
+```
+
+---
+
+## 📄 License
+
+Distributed under the MIT License. See `LICENSE` for more information.

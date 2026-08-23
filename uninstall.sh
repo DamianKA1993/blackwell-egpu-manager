@@ -7,53 +7,71 @@ set -e
 # ==============================================================================
 
 if [ "$EUID" -eq 0 ]; then
-  echo "[-] Błąd: Uruchom ten skrypt jako zwykły użytkownik (bez sudo)."
-  echo "    Skrypt sam poprosi o uprawnienia root w odpowiednich momentach."
+  echo "[-] Error: Run this script as a normal user (without sudo)."
+  echo "    The script will request root privileges when necessary."
   exit 1
 fi
 
 PLASMA_APPLET_DIR="$HOME/.local/share/plasma/plasmoids/com.github.blackwellegpu"
 
-echo "=== 1. Usuwanie backendu CLI i konfiguracji uprawnień ==="
+echo "=== 1. Removing CLI backend and sudoers permissions ==="
 if [ -f "/usr/local/bin/blackwell-egpu" ]; then
     sudo rm -f "/usr/local/bin/blackwell-egpu"
-    echo "[+] Usunięto /usr/local/bin/blackwell-egpu"
+    echo "[+] Removed /usr/local/bin/blackwell-egpu"
 fi
 
 if [ -f "/etc/sudoers.d/blackwell-egpu" ]; then
     sudo rm -f "/etc/sudoers.d/blackwell-egpu"
-    echo "[+] Usunięto /etc/sudoers.d/blackwell-egpu"
+    echo "[+] Removed /etc/sudoers.d/blackwell-egpu"
 fi
 
-echo "=== 2. Usuwanie reguł udev ==="
+echo "=== 2. Managing udev rules ==="
 if [ -f "/etc/udev/rules.d/99-blackwell-egpu.rules" ]; then
-    sudo rm -f "/etc/udev/rules.d/99-blackwell-egpu.rules"
-    sudo udevadm control --reload-rules
-    echo "[+] Usunięto reguły udev i przeładowano konfigurację."
+    echo "----------------------------------------------------------------------"
+    echo "[i] NOTICE: Custom udev rules (/etc/udev/rules.d/99-blackwell-egpu.rules)"
+    echo "    prevent PCIe bus race conditions and driver stalls on USB4/TB4."
+    echo ""
+    echo "    If you plan to update or reinstall the program, press [Enter] to keep these rules."
+    echo ""
+    echo "    IF YOU WANT TO COMPLETELY REMOVE THE PROGRAM, TYPE 'Y' AND PRESS [ENTER]."
+    echo "----------------------------------------------------------------------"
+    read -r -p "Remove udev rules? [y/N]: " UDEV_REMOVE_CHOICE
+    UDEV_REMOVE_CHOICE=${UDEV_REMOVE_CHOICE:-N}
+
+    if [[ "$UDEV_REMOVE_CHOICE" =~ ^[Yy]$ ]]; then
+        sudo rm -f "/etc/udev/rules.d/99-blackwell-egpu.rules"
+        sudo udevadm control --reload-rules
+        echo "[+] Removed udev rules and reloaded subsystem configuration."
+    else
+        echo "[*] Kept udev rules for future reinstallation."
+    fi
+else
+    echo "[*] No custom udev rules found."
 fi
 
-# Usuwanie ewentualnych flag tymczasowych
+# Clean up temporary flags and cache directory
 rm -f /tmp/egpu_allow /tmp/egpu_wait
+rm -rf /tmp/blackwell_egpu
 
-echo "=== 3. Usuwanie apletu KDE Plasma 6 ==="
+echo "=== 3. Removing KDE Plasma 6 applet ==="
 if [ -d "$PLASMA_APPLET_DIR" ]; then
     rm -rf "$PLASMA_APPLET_DIR"
-    echo "[+] Usunięto aplet: $PLASMA_APPLET_DIR"
+    echo "[+] Removed applet: $PLASMA_APPLET_DIR"
 
-    # Czyszczenie pamięci podręcznej QML
+    # Clear QML / Plasma cache
     rm -rf "$HOME/.cache/plasma"* "$HOME/.cache/qmlcache"*
-    echo "[+] Wyczyszczono pamięć podręczną Plasmy."
+    echo "[+] Cleared Plasma cache."
 
-    read -r -p "Zrestartować Plasmashell, aby odświeżyć interfejs? [Y/n]: " RESTART_CHOICE
+    read -r -p "Restart Plasmashell to refresh UI components? [Y/n]: " RESTART_CHOICE
     RESTART_CHOICE=${RESTART_CHOICE:-Y}
-    if [[ "$RESTART_CHOICE" =~ ^[YyTt]$ ]]; then
+    if [[ "$RESTART_CHOICE" =~ ^[Yy]$ ]]; then
         killall plasmashell 2>/dev/null || true
         sleep 1
         nohup plasmashell >/dev/null 2>&1 &
-        echo "[+] Plasmashell został zrestartowany."
+        echo "[+] Plasmashell restarted."
     fi
 else
-    echo "[*] Aplet Plasmy nie był zainstalowany w katalogu użytkownika."
+    echo "[*] Plasma applet was not found in user directory."
 fi
 
-echo -e "\n[+] Deinstalacja zakończona pomyślnie!"
+echo -e "\n[+] Uninstallation completed successfully!"

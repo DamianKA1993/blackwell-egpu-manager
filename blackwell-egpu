@@ -1,34 +1,50 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Cache directory and state file paths
 # Konfiguracja ścieżek i plików cache
 CACHE_DIR="/tmp/blackwell_egpu"
 STATE_FILE="$CACHE_DIR/mode"
 WAIT_FILE="$CACHE_DIR/wait"
 IGPU_FILE="$CACHE_DIR/igpu_name"
+IGPU2_FILE="$CACHE_DIR/igpu2_name"
 EGPU_FILE="$CACHE_DIR/egpu_name"
+EGPU2_FILE="$CACHE_DIR/egpu2_name"
 LINK_FILE="$CACHE_DIR/pcie_link"
+EGPU_ONLY_FILE="$CACHE_DIR/egpu_only"
 
 ACTION="${1:-status}"
 TARGET_MODE="${2:-}"
 
 # ==============================================================================
+# 1. INITIALIZATION (Executed ONLY on the first run)
 # 1. INICJALIZACJA (Wykonywana WYŁĄCZNIE przy pierwszym uruchomieniu)
 # ==============================================================================
 if [ ! -d "$CACHE_DIR" ]; then
     mkdir -p "$CACHE_DIR"
     echo "0" > "$WAIT_FILE"
 
-    # Wykrycie i zapis nazwy iGPU
-    IGPU_NAME=$(lspci | grep -iE "VGA|3D" | grep -iE "intel|amd|advanced micro devices" | head -n1 | cut -d ':' -f3 | xargs || true)
+    # Detect and save base iGPU name from lspci
+    # Wykrycie i zapis nazwy bazowej iGPU z lspci
+    IGPU_NAME=$(lspci 2>/dev/null | grep -iE "VGA|3D" | grep -iE "intel|amd|advanced micro devices" | head -n1 | cut -d ':' -f3 | xargs || true)
     echo "${IGPU_NAME:-Integrated Graphics}" > "$IGPU_FILE"
 
+    # Detect clean iGPU rendering device name via glxinfo
+    # Wykrycie czytelnej nazwy iGPU przez glxinfo
+    IGPU_NAME2=$(glxinfo -B 2>/dev/null | grep -m1 "Device:" | cut -d: -f2- | sed 's/ (.*//' | xargs || true)
+    echo "${IGPU_NAME2:-Integrated GPU}" > "$IGPU2_FILE"
+
+    # Verify initial Thunderbolt/USB4 connection status via boltctl
     # Weryfikacja stanu początkowego przez boltctl
     BOLT_INFO=$(boltctl list 2>/dev/null || true)
 
     if echo "$BOLT_INFO" | grep -Eq 'status:[[:space:]]+authorized$'; then
         EGPU_NAME=$(echo "$BOLT_INFO" | grep -m1 "name:" | cut -d ':' -f2 | xargs || true)
         echo "${EGPU_NAME:-eGPU Device}" > "$EGPU_FILE"
+
+        EGPU_MODEL=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | xargs || true)
+        echo "${EGPU_MODEL:-NVIDIA Graphics}" > "$EGPU2_FILE"
+
         echo "2" > "$STATE_FILE"
     elif echo "$BOLT_INFO" | grep -Eq 'status:[[:space:]]+connected$'; then
         EGPU_NAME=$(echo "$BOLT_INFO" | grep -m1 "name:" | cut -d ':' -f2 | xargs || true)
@@ -40,21 +56,34 @@ if [ ! -d "$CACHE_DIR" ]; then
 fi
 
 # ==============================================================================
+# 2. FAST SYSFS CONNECTION VERIFICATION (Zero-Fork / Polling)
 # 2. SZYBKA WERYFIKACJA POŁĄCZENIA W SYSFS (Zero-Fork / Polling)
 # ==============================================================================
+# Detect Thunderbolt/USB4 child devices (exclude built-in root switches ending with -0)
 # Wykrywanie urządzeń podrzędnych Thunderbolt/USB4 (wykluczenie wbudowanych root switchy kończących się na -0)
+
+# If eGPU-only flag is set, lock mode to 4 and wait to 0
+# Jeśli flaga eGPU-only istnieje, wymuś mode 4 i wait 0
+if [ -f "$EGPU_ONLY_FILE" ]; then
+    echo "4" > "$STATE_FILE"
+    echo "0" > "$WAIT_FILE"
+fi
+
 TB_DEVICE=$(ls -d /sys/bus/thunderbolt/devices/*-* 2>/dev/null | grep -vE -- '-0$' | head -n1 || true)
 
 if [ -z "$TB_DEVICE" ]; then
     echo "0" > "$STATE_FILE"
     echo "0" > "$WAIT_FILE"
-    rm -f "$EGPU_FILE" "$LINK_FILE"
+    rm -f "$EGPU_FILE" "$EGPU2_FILE" "$LINK_FILE"
 
     if [ "$ACTION" = "status" ]; then
-        printf '{"mode":0,"wait":0,"igpu":"%s","egpu":"None","link":"N/A"}\n' "$(<"$IGPU_FILE")"
+        IGPU_NAME=$(cat "$IGPU_FILE" 2>/dev/null | tr -d '"' || echo "Integrated Graphics")
+        IGPU_NAME2=$(cat "$IGPU2_FILE" 2>/dev/null | tr -d '"' || echo "Integrated GPU")
+        printf '{"mode":0,"wait":0,"igpu":"%s","igpu2":"%s","egpu":"None","egpu2":"None","link":"N/A"}\n' "$IGPU_NAME" "$IGPU_NAME2"
     fi
     exit 0
 else
+    # If state in memory is 0 and device is physically connected (Hot-Plug)
     # Jeśli stan w pamięci to 0, a urządzenie zostało fizycznie podpięte (Hot-Plug)
     CURRENT_STATE=$(cat "$STATE_FILE" 2>/dev/null || echo "0")
     if [ "$CURRENT_STATE" = "0" ]; then
@@ -71,21 +100,25 @@ else
 fi
 
 # ==============================================================================
+# 3. STATUS COMMAND HANDLER (Queried by the applet every 2-3 seconds)
 # 3. OBSŁUGA POLECENIA STATUS (Dla apletu co 2 sekundy)
 # ==============================================================================
 if [ "$ACTION" = "status" ]; then
     CURRENT_MODE=$(cat "$STATE_FILE" 2>/dev/null || echo "1")
     IS_WAITING=$(cat "$WAIT_FILE" 2>/dev/null || echo "0")
-    IGPU_NAME=$(cat "$IGPU_FILE" 2>/dev/null || echo "Integrated Graphics")
-    EGPU_NAME=$(cat "$EGPU_FILE" 2>/dev/null || echo "eGPU Device")
+    IGPU_NAME=$(cat "$IGPU_FILE" 2>/dev/null | tr -d '"' || echo "Integrated Graphics")
+    IGPU_NAME2=$(cat "$IGPU2_FILE" 2>/dev/null | tr -d '"' || echo "Integrated GPU")
+    EGPU_NAME=$(cat "$EGPU_FILE" 2>/dev/null | tr -d '"' || echo "eGPU Device")
+    EGPU_NAME2=$(cat "$EGPU2_FILE" 2>/dev/null | tr -d '"' || echo "NVIDIA Graphics")
     PCIE_LINK=$(cat "$LINK_FILE" 2>/dev/null || echo "N/A")
 
-    printf '{"mode":%s,"wait":%s,"igpu":"%s","egpu":"%s","link":"%s"}\n' \
-        "$CURRENT_MODE" "$IS_WAITING" "$IGPU_NAME" "$EGPU_NAME" "$PCIE_LINK"
+    printf '{"mode":%s,"wait":%s,"igpu":"%s","igpu2":"%s","egpu":"%s","egpu2":"%s","link":"%s"}\n' \
+        "$CURRENT_MODE" "$IS_WAITING" "$IGPU_NAME" "$IGPU_NAME2" "$EGPU_NAME" "$EGPU_NAME2" "$PCIE_LINK"
     exit 0
 fi
 
 # ==============================================================================
+# 4. BUS RETRAINING & LINK SPEED NEGOTIATION HELPERS
 # 4. FUNKCJE POMOCNICZE NEGOCJACJI MAGISTRALI
 # ==============================================================================
 negotiate_optimal_link_speed() {
@@ -105,20 +138,23 @@ negotiate_optimal_link_speed() {
         32*) echo "0025" ;; # Gen5
         16*) echo "0024" ;; # Gen4
         8*)  echo "0023" ;; # Gen3
-        *)   echo "0024" ;; # Bezpieczny standard
+        *)   echo "0024" ;; # Safe default / Bezpieczny standard
     esac
 }
 
 # ==============================================================================
+# 5. MODE EXECUTION FUNCTIONS (SET)
 # 5. FUNKCJE WYKONAWCZE TRYBÓW (SET)
 # ==============================================================================
 set2() {
+    # Mode 2: Authorize eGPU via boltctl and save device name
     # Mode 2: Autoryzacja eGPU przez boltctl i zapis nazwy
     local DEV_UUID
     DEV_UUID=$(boltctl list 2>/dev/null | grep -B5 -E 'status:[[:space:]]+connected$' | grep -m1 "uuid:" | cut -d ':' -f2 | xargs || true)
 
     if [ -n "$DEV_UUID" ]; then
         boltctl authorize "$DEV_UUID" 2>/dev/null || true
+        #boltctl enroll "$DEV_UUID" 2>/dev/null || true
     fi
 
     local BOLT_INFO
@@ -133,6 +169,7 @@ set2() {
 }
 
 set3() {
+    # Mode 3: Hybrid mode (iGPU + eGPU / load NVIDIA modules, PCIe retraining)
     # Mode 3: Tryb hybrydowy (iGPU + eGPU / moduły nvidia, retraining PCIe)
     if ! lsmod | grep -q "^nvidia "; then
         fuser -k /dev/nvidia* 2>/dev/null || true
@@ -212,20 +249,79 @@ set3() {
         nvidia-smi --lock-memory-clocks="${MAX_MEM:-14001},${MAX_MEM:-14001}" >/dev/null 2>&1 || true
     fi
 
+    # Save exact GPU model name after module loading
+    # Zapis dokładnej nazwy modelu karty po załadowaniu modułów
+    local EGPU_MODEL
+    EGPU_MODEL=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | xargs || true)
+    if [ -n "$EGPU_MODEL" ]; then
+        echo "$EGPU_MODEL" > "$EGPU2_FILE"
+    fi
+
+    # Save active PCIe link speed and generation to cache
     # Zapis aktualnego linku PCIe do cache
     local CURRENT_LINK
-    CURRENT_LINK=$(lspci -d 10de: -vv 2>/dev/null | awk '/LnkSta:/ {for(i=1;i<=NF;i++) if($i ~ /Speed/) print $(i+1)}' | head -n1 || echo "N/A")
+    CURRENT_LINK=$(lspci -d 10de: -vv 2>/dev/null | awk '/LnkSta:/ {for(i=1;i<=NF;i++) if($i ~ /Speed/) {
+        speed=$(i+1);
+        if (speed ~ /^32/) gen="Gen5";
+        else if (speed ~ /^16/) gen="Gen4";
+        else if (speed ~ /^8/) gen="Gen3";
+        else if (speed ~ /^5/) gen="Gen2";
+        else if (speed ~ /^2.5/) gen="Gen1";
+        else gen="";
+
+        if (gen != "") print speed " (" gen ")";
+        else print speed;
+    }}' | head -n1 || echo "N/A")
     echo "${CURRENT_LINK:-N/A}" > "$LINK_FILE"
 
     echo "3"
 }
 
 set4() {
-    # Mode 4: Tryb eGPU-only (TODO: zostanie zaimplementowane w przyszłości)
+    # Mode 4: eGPU-only mode (disconnect iGPU from PCI bus tree)
+    # Mode 4: Tryb eGPU-only (odłączanie iGPU z drzewa PCI)
+
+    # Mode 4: Save persistent eGPU-only flag and reset wait
+    # Mode 4: Zapisanie trwałej flagi trybu eGPU-only
+    echo "1" > "$EGPU_ONLY_FILE"
+    echo "4" > "$STATE_FILE"
+    echo "0" > "$WAIT_FILE"
+
+    local found_igpu=0
+
+    for dev in /sys/bus/pci/devices/*; do
+        [ -d "$dev" ] || continue
+
+        local vendor=""
+        local class=""
+        vendor=$(cat "$dev/vendor" 2>/dev/null || true)
+        class=$(cat "$dev/class" 2>/dev/null || true)
+
+        # Check for VGA/Display devices (class 0x03xxxx) for AMD (0x1002) and Intel (0x8086)
+        # Sprawdzanie urządzeń VGA/Display (klasa 0x03xxxx) dla AMD (0x1002) oraz Intel (0x8086)
+        if [[ "$class" =~ ^0x03 ]] && { [ "$vendor" = "0x1002" ] || [ "$vendor" = "0x8086" ]; }; then
+            local addr=$(basename "$dev")
+            local base_slot="${addr%.*}"
+            local audio_addr="${base_slot}.1"
+
+            # Remove processor-integrated audio device
+            # Odcięcie zintegrowanego audio powiązanego z procesorem
+            if [ -d "/sys/bus/pci/devices/$audio_addr" ]; then
+                echo 1 > "/sys/bus/pci/devices/$audio_addr/remove" 2>/dev/null || true
+            fi
+
+            # Remove iGPU display controller with safety guard
+            # Odcięcie magistrali graficznej iGPU z asekuracją || true
+            echo 1 > "/sys/bus/pci/devices/$addr/remove" 2>/dev/null || true
+            found_igpu=1
+        fi
+    done
+
     echo "4"
 }
 
 # ==============================================================================
+# 6. SET COMMAND HANDLER (Cascading step-up execution with wait flag)
 # 6. OBSŁUGA POLECENIA SET (Kaskadowe przejście w górę z flagą wait)
 # ==============================================================================
 if [ "$ACTION" = "set" ]; then

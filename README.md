@@ -7,7 +7,7 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 * **Intel Cold-Plug Warning**: On Intel host platforms, connecting the eGPU before powering on the system (cold-plug) may cause PCIe bridge enumeration conflicts, leading to applet initialization errors (such as NVML failing to detect the GPU in early boot). It is strongly recommended to connect/power on the eGPU after the system has fully booted into the desktop.
 * **Post-Installation Reboot**: The installer deploys custom udev rules to prevent PCIe link stalls and improper driver auto-binding. A **system reboot is required** after running `install.sh` for these rules to fully take effect and ensure a clean, fixed link negotiation.
 
-![Authorization Mode](assets/preview.jpg)
+![Authorization Mode](assets/preview.png)
 
 ---
 
@@ -29,7 +29,7 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ---
 
-![Intel Workflow](assets/preview2.jpg)
+![Intel Workflow](assets/preview2.png)
 
 ## ⚠️ Experimental Feature Warning
 
@@ -53,7 +53,7 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ---
 
-![AMD Workflow](assets/preview3.jpg)
+![AMD Workflow](assets/preview3.png)
 
 ## 🛠️ Installation
 

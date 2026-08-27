@@ -1,18 +1,19 @@
-name: " Confirm Working Setup"
-description: "Let the community know this script worked on your hardware"
-title: "[Hardware Confirmation]: <Your Laptop/Mini-PC Model>"
-labels: ["hardware-confirmed", "documentation"]
+name: Confirm Working Setup
+description: Let the community know this script worked on your hardware
+title: "[Hardware Confirmation]: "
+labels: ["documentation"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for confirming! This helps other Linux users know which hardware combinations are stable.
+        ### Thanks for confirming!
+        This helps other Linux users know which hardware combinations are stable.
   - type: input
     id: host_device
     attributes:
       label: Host Device & CPU
-      description: "e.g., Framework 16 (Ryzen 7040), Lenovo Legion, Mini PC (8745HS)"
-      placeholder: "e.g., ASUS ROG Flow X13 (AMD Ryzen 9 7940HS)"
+      description: What is your laptop/mini-PC model and processor?
+      placeholder: "e.g., Minisforum UM780 XTX (AMD Ryzen 7 7840HS)"
     validations:
       required: true
   - type: dropdown
@@ -20,9 +21,9 @@ body:
     attributes:
       label: Negotiated Link Speed
       options:
-        - "PCIe Gen4 x4 (Stable)"
-        - "PCIe Gen3 x4 (Stable)"
-        - "PCIe Gen5"
+        - "PCIe Gen4 x4 (16 GT/s)"
+        - "PCIe Gen3 x4 (8 GT/s)"
+        - "PCIe Gen5 x4 (32 GT/s)"
         - "Other"
     validations:
       required: true
@@ -30,12 +31,12 @@ body:
     id: distro_kernel
     attributes:
       label: Linux Distro & Kernel
-      description: "e.g., CachyOS 6.10, Bazzite, Fedora 40, Arch"
-      placeholder: "CachyOS / Kernel 6.10.x"
+      description: Which OS and kernel version are you running?
+      placeholder: "e.g., CachyOS / Kernel 6.10.x"
     validations:
       required: false
   - type: textarea
     id: notes
     attributes:
       label: Additional Notes
-      description: "Any extra flags or Thunderbolt dock quirks? (Optional)"
+      description: Any extra tweaks or Thunderbolt dock quirks? (Optional)

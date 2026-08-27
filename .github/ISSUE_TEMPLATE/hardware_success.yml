@@ -1,0 +1,41 @@
+name: " Confirm Working Setup"
+description: "Let the community know this script worked on your hardware"
+title: "[Hardware Confirmation]: <Your Laptop/Mini-PC Model>"
+labels: ["hardware-confirmed", "documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for confirming! This helps other Linux users know which hardware combinations are stable.
+  - type: input
+    id: host_device
+    attributes:
+      label: Host Device & CPU
+      description: "e.g., Framework 16 (Ryzen 7040), Lenovo Legion, Mini PC (8745HS)"
+      placeholder: "e.g., ASUS ROG Flow X13 (AMD Ryzen 9 7940HS)"
+    validations:
+      required: true
+  - type: dropdown
+    id: pcie_speed
+    attributes:
+      label: Negotiated Link Speed
+      options:
+        - "PCIe Gen4 x4 (Stable)"
+        - "PCIe Gen3 x4 (Stable)"
+        - "PCIe Gen5"
+        - "Other"
+    validations:
+      required: true
+  - type: input
+    id: distro_kernel
+    attributes:
+      label: Linux Distro & Kernel
+      description: "e.g., CachyOS 6.10, Bazzite, Fedora 40, Arch"
+      placeholder: "CachyOS / Kernel 6.10.x"
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: "Any extra flags or Thunderbolt dock quirks? (Optional)"

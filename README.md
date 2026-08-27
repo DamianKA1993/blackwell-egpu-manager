@@ -41,7 +41,7 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 If this script resolved your eGPU crashes or lockups, please take 10 seconds to confirm your hardware setup:
 
-[![Confirm Working Setup](https://img.shields.io/badge/eGPU%20Working%3F-Report%20Hardware%20Setup-brightgreen?style=for-the-badge&logo=github)](https://github.com/DamianKA1993/blackwell-egpu-hotplug-injector/issues/new?template=hardware_success.yml)
+[![Confirm Working Setup](https://img.shields.io/badge/eGPU%20Working%3F-Report%20Hardware%20Setup-brightgreen?style=for-the-badge&logo=github)](https://github.com/DamianKA1993/blackwell-egpu-manager/issues/new?template=hardware_success.yml)
 
 *(Click the button above to submit your CPU/Laptop model directly)*
 

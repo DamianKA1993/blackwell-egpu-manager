@@ -112,8 +112,33 @@ if [ "$ACTION" = "status" ]; then
     EGPU_NAME2=$(cat "$EGPU2_FILE" 2>/dev/null | tr -d '"' || echo "NVIDIA Graphics")
     PCIE_LINK=$(cat "$LINK_FILE" 2>/dev/null || echo "N/A")
 
-    printf '{"mode":%s,"wait":%s,"igpu":"%s","igpu2":"%s","egpu":"%s","egpu2":"%s","link":"%s"}\n' \
-        "$CURRENT_MODE" "$IS_WAITING" "$IGPU_NAME" "$IGPU_NAME2" "$EGPU_NAME" "$EGPU_NAME2" "$PCIE_LINK"
+    GPU_UTIL=0
+    PWR_CURR=0
+    VRAM_USED=0
+    VRAM_TOTAL=0
+    GPU_TEMP=0
+    PCIE_RX=0
+    PCIE_TX=0
+
+    if [ "$CURRENT_MODE" -ge 3 ]; then
+        TELEMETRY=$(nvidia-smi --query-gpu=utilization.gpu,power.draw,memory.used,memory.total,temperature.gpu --format=csv,noheader,nounits 2>/dev/null || echo "0, 0, 0, 0, 0")
+        IFS=',' read -r GPU_UTIL PWR_CURR VRAM_USED VRAM_TOTAL GPU_TEMP <<< "$TELEMETRY"
+
+        GPU_UTIL="${GPU_UTIL// /}"
+        PWR_CURR="${PWR_CURR// /}"
+        VRAM_USED="${VRAM_USED// /}"
+        VRAM_TOTAL="${VRAM_TOTAL// /}"
+        GPU_TEMP="${GPU_TEMP// /}"
+
+        # Direct PCIe RX/TX throughput sampling via dmon
+        # Bezpośredni odczyt przepustowości PCIe RX/TX przez dmon
+        read -r PCIE_RX PCIE_TX <<< "$(nvidia-smi dmon -s t -c 1 2>/dev/null | awk 'NR>2 {print $2, $3}')"
+    fi
+
+    printf '{"mode":%s,"wait":%s,"igpu":"%s","igpu2":"%s","egpu":"%s","egpu2":"%s","link":"%s","gpu_util":%s,"pwr_curr":%s,"vram_used":%s,"vram_total":%s,"temp":%s,"pcie_rx":%s,"pcie_tx":%s}\n' \
+        "$CURRENT_MODE" "$IS_WAITING" "$IGPU_NAME" "$IGPU_NAME2" "$EGPU_NAME" "$EGPU_NAME2" "$PCIE_LINK" \
+        "${GPU_UTIL:-0}" "${PWR_CURR:-0}" "${VRAM_USED:-0}" "${VRAM_TOTAL:-0}" "${GPU_TEMP:-0}" \
+        "${PCIE_RX:-0}" "${PCIE_TX:-0}"
     exit 0
 fi
 
@@ -153,8 +178,8 @@ set2() {
     DEV_UUID=$(boltctl list 2>/dev/null | grep -B5 -E 'status:[[:space:]]+connected$' | grep -m1 "uuid:" | cut -d ':' -f2 | xargs || true)
 
     if [ -n "$DEV_UUID" ]; then
-        boltctl authorize "$DEV_UUID" 2>/dev/null || true
-        #boltctl enroll "$DEV_UUID" 2>/dev/null || true
+        #boltctl authorize "$DEV_UUID" 2>/dev/null || true
+        boltctl enroll "$DEV_UUID" 2>/dev/null || true
     fi
 
     local BOLT_INFO

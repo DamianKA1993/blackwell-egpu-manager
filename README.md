@@ -7,7 +7,7 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 * **Intel Cold-Plug Warning**: On Intel host platforms, connecting the eGPU before powering on the system (cold-plug) may cause PCIe bridge enumeration conflicts, leading to applet initialization errors (such as NVML failing to detect the GPU in early boot). It is strongly recommended to connect/power on the eGPU after the system has fully booted into the desktop.
 * **Post-Installation Reboot**: The installer deploys custom udev rules to prevent PCIe link stalls and improper driver auto-binding. A **system reboot is required** after running `install.sh` for these rules to fully take effect and ensure a clean, fixed link negotiation.
 
-![Authorization Mode](assets/preview.png)
+![update](assets/preview.png)
 
 ---
 
@@ -15,7 +15,8 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 * **Dynamic Multi-Platform Discovery**: Real-time detection of host iGPU (AMD Phoenix/HawkPoint/Strix APUs and Intel 11th Gen+ Tiger Lake / Iris Xe / Core Ultra) and NVIDIA RTX 50-series Blackwell eGPUs with zero hardcoded PCI paths.
 * **Ghost-Free Hardware State Engine**: Direct synchronous querying of `/sys/bus/pci/devices/` and `boltctl` connection states, eliminating phantom devices during hot-unplug events.
-* **PCIe 4.0 / USB4 Link Negotiation**: Real-time link speed detection and display (up to 16 GT/s PCIe 4.0 x4) across Intel Barlow Ridge, Goshen Ridge, and ASMedia ASM2464PD bridges.
+* **PCIe Gen4 / Gen5 & USB4/TB Link Negotiation**: Real-time link speed detection and display (up to 16 GT/s / 32 GT/s PCIe 4.0/5.0) across Intel Barlow Ridge (TB5), Goshen Ridge (TB4), and ASMedia ASM2464PD (USB4) bridges.
+* **Real-Time eGPU Telemetry (Modes 3 & 4)**: Dynamic live monitoring of GPU core usage (%), power draw (W), VRAM allocation, bidirectional PCIe bandwidth (RX/TX in MB/s), and thermals with threshold-based color highlights.
 * **5-Mode Hardware State Switching Engine**:
   * **Mode 0 (Disconnected)**: USB4 / PCIe bus detached; zero power draw.
   * **Mode 1 (Unauthorized)**: Device detected via USB4/Thunderbolt, awaiting host authorization.
@@ -104,6 +105,9 @@ sudo blackwell-egpu set 4
 ```
 
 ---
+
+![aplet-theme](assets/preview4.png)
+
 
 ## 🗑️ Uninstallation
 

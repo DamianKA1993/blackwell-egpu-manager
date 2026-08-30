@@ -2,6 +2,33 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+# Changelog
+
+All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
+
+## [1.3.0] - 2026-08-30
+
+### Hardware Management & Security
+* **Persistent USB4/Thunderbolt Enrollment (`boltctl enroll`)**: Migrated the authorization mechanism from transient authorization (`boltctl authorize`) to persistent enrollment (`boltctl enroll`). Enrolled eGPU enclosures are now permanently trusted by the `boltd` daemon, enabling seamless automatic connection on system boot and hot-plug without requiring manual re-authorization.
+
+### Telemetry & Real-Time Monitoring (Modes 3 & 4)
+* **Real-Time eGPU Telemetry Engine**: Integrated live telemetry polling via `nvidia-smi dmon` backend parsing into the CLI daemon and QML UI.
+* **Faster Polling Interval**: Reduced the main telemetry and UI refresh interval from 3000 ms to 2000 ms (2 seconds), providing snappier real-time responsiveness under dynamic workloads.
+* **Core & Power Utilization**: Real-time monitoring of GPU core load percentage and dynamic package power draw in Watts (`Usage: X% (YW)`) with visual threshold-based load bar styling (warning color transition at ≥ 90%).
+* **VRAM Tracking**: Added live dedicated video memory allocation display (`VRAM: X.X / Y GB`) with interactive capacity indicator bar (highlight/negative color transition at ≥ 90%).
+* **Bidirectional PCIe Bus Throughput**: Real-time monitoring of active USB4/PCIe bus traffic relative to the host CPU:
+  * `↓ TX (Host to Device)`: Real-time download/context feeding throughput with automatic dynamic highlighting when bandwidth exceeds 100 MB/s.
+  * `↑ RX (Device to Host)`: Real-time upload/frame return throughput with automatic dynamic highlighting when bandwidth exceeds 100 MB/s.
+* **Thermal Monitoring**: Dynamic GPU core temperature reporting (`Temp: X°C`) with multi-stage color thresholds for normal, warm (≥ 70°C), and critical (≥ 80°C) states.
+
+### KDE Plasma 6 Applet (`com.github.blackwellegpu`)
+* **Interactive Header & Pin Control**: Added a dedicated top navigation header featuring an interactive keep-open pin toggle (`Plasmoid.configuration.pin`) and back-navigation support, standardizing window behavior with native Plasma system dialogs.
+* **Mode 2 Warning Visibility Fix**: Resolved an issue where the experimental iGPU disablement safety warning was erroneously hidden in Mode 2 (`Standby / Ready`), ensuring critical safety notices are consistently displayed across Modes 2, 3, and 4 when the `eGPU Only` toggle is accessible.
+* **Responsive Anchor Layout**: Replaced rigid horizontal layouts (`RowLayout`) in the telemetry panel with anchor-based `Item` containers. Values and labels are locked to container margins (`anchors.left` / `anchors.right`), preventing text clipping and horizontal window expansion during multi-digit readouts (e.g. 4-digit throughput spikes).
+* **Refined Right-Aligned Telemetry Column**: Set an optimized minimum width layout anchored to the right, ensuring clean aesthetic separation between hardware info and live telemetry metrics.
+* **Metadata Alignment**: Synchronized `metadata.json` versioning to 1.3.0.
+
+
 ## [1.2.0] - 2026-08-23
 
 ### Core Features & Hardware Management

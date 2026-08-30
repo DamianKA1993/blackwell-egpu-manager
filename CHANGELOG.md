@@ -2,6 +2,14 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.3.2] - 2026-08-30
+
+### Performance & Telemetry Optimization
+* **Non-Blocking Asynchronous Telemetry Pipeline**: Decoupled PCIe throughput sampling from the main status query loop. The `status` action now immediately serves cached metrics from `/tmp/blackwell_egpu/traffic` in ~25 ms (down from ~1200 ms), completely eliminating Plasma shell UI stutter and timer blocking.
+* **Gapless 2-Second Background PCIe Sampling**: Configured background `nvidia-smi dmon` subshells with `-d 2` to collect full 2-second telemetry windows concurrently with QML timer ticks, ensuring continuous, gapless bandwidth tracking without UI latency.
+* **Atomic File Updates**: Integrated atomic file replacement (`mv -f`) for cached telemetry data to prevent race conditions and partial reads during rapid status polling.
+* **Codebase & Documentation Standardization**: Fully refactored the `ACTION="status"` command handler with structured bilingual code comments (English & Polish) and optimized indentation.
+
 ## [1.3.1] - 2026-08-30
 
 ### Bug Fixes & Reliability

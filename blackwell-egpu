@@ -42,7 +42,7 @@ if [ ! -d "$CACHE_DIR" ]; then
         EGPU_NAME=$(echo "$BOLT_INFO" | grep -m1 "name:" | cut -d ':' -f2 | xargs || true)
         echo "${EGPU_NAME:-eGPU Device}" > "$EGPU_FILE"
 
-        EGPU_MODEL=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | xargs || true)
+        EGPU_MODEL=$(echo "$BOLT_INFO" | grep -m1 "name:" | cut -d ':' -f2 | xargs || true)
         echo "${EGPU_MODEL:-NVIDIA Graphics}" > "$EGPU2_FILE"
 
         echo "2" > "$STATE_FILE"

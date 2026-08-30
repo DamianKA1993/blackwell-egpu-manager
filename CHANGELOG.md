@@ -2,9 +2,10 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
-# Changelog
+## [1.3.1] - 2026-08-30
 
-All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
+### Bug Fixes & Reliability
+* **Safe Enrolled eGPU Device Name Fallback in Standby (Mode 2)**: Resolved a driver query failure (`NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver`) occurring during system startup or hot-plug with persistent enrollment (`boltctl enroll`). In Mode 2, when NVIDIA kernel modules are not yet loaded, the backend now safely retrieves the hardware enclosure identity from `boltctl` metadata instead of attempting premature `nvidia-smi` queries. Full GPU model identification and telemetry remain cleanly deferred until driver initialization in Mode 3 / 4.
 
 ## [1.3.0] - 2026-08-30
 

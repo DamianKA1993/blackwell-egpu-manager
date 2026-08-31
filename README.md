@@ -156,22 +156,59 @@ The installer will interactively guide you through:
 
 ---
 
+## 🔄 State Machine & Operational Modes
+
+The manager operates as a strict, deterministic state machine spanning **Modes 0 through 6**. 
+
+Transitions progress sequentially upwards to prevent driver race conditions, with **Mode 6** acting as the dedicated safe detach path from Hybrid mode:
+
+[0: Disconnected] ──> [1: Cable Plugged] ──> [2: Standby] ──> [3: Hybrid Offload] ──> [4: Dedicated eGPU] ──> [5: Restore iGPU]
+│
+└───> [6: Safe eGPU Detach] ───> (Back to 0 / 2)
+
+
+### 📋 State Breakdown
+
+* **Mode 0 (Disconnected):** No eGPU detected on the USB4/Thunderbolt bus; host runs purely on the integrated graphics (iGPU).
+* **Mode 1 (Hardware Attached):** Cable plugged in and physical link established; awaiting userspace/boltctl authorization.
+* **Mode 2 (Standby / Authorized):** Enclosure authorized and PCIe bridge tree traversed; ASPM/L1SS disabled, but NVIDIA kernel modules remain unloaded.
+* **Mode 3 (Hybrid Offload / PRIME):** NVIDIA modules loaded, PCIe link speed negotiated (Gen4/Gen5), P0 performance clocks locked. KDE Plasma session runs on iGPU while applications can be offloaded via PRIME.
+* **Mode 4 (Dedicated eGPU - Experimental):** Host iGPU is cleanly unbound and detached from the bus, routing the desktop compositor directly to the eGPU.
+* **Mode 5 (Universal iGPU Restore):** Rescans the parent bridge to bring the host iGPU back online after Mode 4.
+* **Mode 6 (Wayland Safe Detach):** Cleanly unbinds NVIDIA PCIe devices, syncs DRM change events, releases file locks via `fuser`, and unloads kernel modules. **Must be executed from Mode 3.**
+
+---
+
+### ⚠️ Transition Rules
+
+* **Upward Escalation (0 $\rightarrow$ 1 $\rightarrow$ 2 $\rightarrow$ 3 $\rightarrow$ 4 $\rightarrow$ 5):** Modes advance sequentially. You cannot jump directly into dedicated execution without completing bridge configuration and clock stabilization.
+* **The Detach Branch (0 $\rightarrow$ 1 $\rightarrow$ 2 $\rightarrow$ 3 $\rightarrow$ 6):** Safe hardware removal is strictly designed to branch off from **Mode 3**. Once the iGPU is detached in Mode 4, Wayland locks the primary rendering engine to the eGPU, preventing dynamic detachment until the system is rebooted or restored.
+
+
+---
+
 ## 🖥️ CLI Usage
 
 The backend CLI can be managed independently from scripts, keybindings, or terminals:
 
 ```bash
-# Query current state (returns JSON formatted status)
+# Query current state (returns JSON formatted status & telemetry)
 blackwell-egpu status
 
-# Authorize USB4/TB connection (Mode 1 -> Mode 2)
+# Authorize USB4/TB connection (Mode 1 -> Mode 2: Standby / Ready)
 sudo blackwell-egpu set 2
 
-# Switch to Hybrid Offload (Mode 3: PRIME render offload)
+# Switch to Hybrid Offload (Mode 3: PRIME render offload with active iGPU)
 sudo blackwell-egpu set 3
 
 # Switch to Dedicated eGPU Mode (Mode 4: Disconnect iGPU / Primary eGPU)
 sudo blackwell-egpu set 4
+
+# Restore Integrated Graphics (Mode 5: Re-scan parent bridge & bring iGPU back online)
+sudo blackwell-egpu set 5
+
+# Wayland Safe eGPU Detach (Mode 6: Clean unbind, DRM flush & module unload from Mode 3)
+sudo blackwell-egpu set 6
 ```
 
 ---

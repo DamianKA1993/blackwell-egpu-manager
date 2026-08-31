@@ -60,7 +60,6 @@ chmod +x install.sh uninstall.sh
 * **PCIe Gen4 / Gen5 & USB4/TB Link Negotiation**: Real-time link speed detection and display (up to 16 GT/s / 32 GT/s PCIe 4.0/5.0) across Intel Barlow Ridge (TB5), Goshen Ridge (TB4), and ASMedia ASM2464PD (USB4) bridges.
 * **Real-Time eGPU Telemetry (Modes 3 & 4)**: Dynamic live monitoring of GPU core usage (%), power draw (W), VRAM allocation, bidirectional PCIe bandwidth (RX/TX in MB/s), and thermals with threshold-based color highlights.
 Deterministic 7-Mode State Machine Engine:
-
    * Mode 0 (Disconnected): USB4 / PCIe bus detached; zero power draw.
    * Mode 1 (Unauthorized): Device detected via USB4/Thunderbolt, awaiting host authorization.
    * Mode 2 (Standby / Ready): Controller authorized, card recognized on PCIe bus and kept in low-power standby (D3cold).
@@ -68,7 +67,7 @@ Deterministic 7-Mode State Machine Engine:
    * Mode 4 (Dedicated Primary / eGPU Only): Dedicated GPU rendering session with runtime iGPU PCI-bus unbinding.
    * Mode 5 (Universal iGPU Restore): Rescans parent bridges and restores iGPU display output back into the session.
    * Mode 6 (Wayland Safe Detach): Cleanly flushes DRM descriptors, unbinds driver instances, and unloads kernel modules for safe unplugging.
-   * Multi-Language Support (i18n)**: Built-in localization support for 10 languages (`en`, `pl`, `de`, `es`, `fr`, `it`, `pt`, `uk`, `cs`, `ja`, `zh`) with automatic desktop locale detection and fallback handling.
+* **Multi-Language Support (i18n)**: Built-in localization support for 10 languages (`en`, `pl`, `de`, `es`, `fr`, `it`, `pt`, `uk`, `cs`, `ja`, `zh`) with automatic desktop locale detection and fallback handling.
 * **KDE Display Settings Integration**: Instant one-click launcher for KDE Screen Management (`kcm_kscreen`) directly from the widget.
 * **Modular Interactive Installer & Uninstaller**: Clean Bash wizards with optional udev rule management, sudoers configuration, and desktop widget deployment.
 * **Native KDE Plasma 6 Applet**: Standalone Plasmoid with fixed proportions (24x24 gridUnit), live link-speed badge, and vertically centered control buttons.

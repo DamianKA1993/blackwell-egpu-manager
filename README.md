@@ -162,10 +162,11 @@ The manager operates as a strict, deterministic state machine spanning **Modes 0
 
 Transitions progress sequentially upwards to prevent driver race conditions, with **Mode 6** acting as the dedicated safe detach path from Hybrid mode:
 
+```text
 [0: Disconnected] ──> [1: Cable Plugged] ──> [2: Standby] ──> [3: Hybrid Offload] ──> [4: Dedicated eGPU] ──> [5: Restore iGPU]
-│
-└───> [6: Safe eGPU Detach] ───> (Back to 0 / 2)
-
+                                                                      │
+                                                                      └───> [6: Safe eGPU Detach] ───> (Back to 0 / 2)
+```
 
 ### 📋 State Breakdown
 

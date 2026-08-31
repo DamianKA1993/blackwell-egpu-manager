@@ -80,6 +80,8 @@ If this script resolved your eGPU crashes or lockups, please take 10 seconds to 
 
 ---
 
+![update140a](assets/preview0.png)
+
 ## 📋 Requirements
 
 * **OS**: CachyOS, Arch Linux, or other rolling-release distributions with Linux Kernel >= 6.10 (tested on Linux 7.2.0-cachyos).

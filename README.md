@@ -129,7 +129,7 @@ If this script resolved your eGPU crashes or lockups, please take 10 seconds to 
 * **OS**: CachyOS, Arch Linux, or other rolling-release distributions with Linux Kernel >= 6.10 (tested on Linux 7.2.0-cachyos).
 * **Desktop**: KDE Plasma 6 (Wayland recommended; purely optional for standalone CLI usage).
 * **Driver & Dependencies**:
-  * NVIDIA Open Kernel Modules: `linux-cachyos-nvidia-open`, `nvidia-open-dkms`, or `nvidia-open` (610.xx+ driver series).
+  * NVIDIA Open Kernel Modules: `linux-cachyos-nvidia-open`, `nvidia-open-dkms`, or `nvidia-open` (580.xx+ driver series).
   * System tools: `nvidia-utils` (for NVML / `nvidia-smi`) and `bolt` (for Thunderbolt/USB4 device authorization).
 * **Supported Hardware**:
   * **eGPU**: NVIDIA RTX 50-series (Blackwell architecture, e.g. AORUS RTX 5060 Ti AI BOX).

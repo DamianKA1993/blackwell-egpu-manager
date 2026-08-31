@@ -27,7 +27,7 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
    * Requires official **NVIDIA Open GPU Kernel Modules** (`nvidia-open`).
    * Compatible with driver version **580.xx and newer**.
   
-# ⚡ Ready to proceed?** If you have reviewed all 5 prerequisites above and your hardware and system environment meet these conditions, you can proceed with the Quick Start installation below.
+# ⚡ **Ready to proceed?** If you have reviewed all 5 prerequisites above and your hardware and system environment meet these conditions, you can proceed with the Quick Start installation below.
 
 ## 🚀 Quick Start
 

@@ -32,37 +32,35 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ![Intel Workflow](assets/preview2.png)
 
-## 🚀 Architecture: Dynamic udev Orchestration vs. Kernel Patches & Modprobe
-Running NVIDIA Blackwell (RTX 50-series) eGPUs over USB4/Thunderbolt on Linux presents unique timing and power management challenges. While alternative workflows rely on patching kernel source trees or hardcoding global driver blacklists, blackwell-egpu-manager uses dynamic userspace orchestration driven by udev.
+## 🏗️ Architecture: Dynamic udev Orchestration vs. Kernel Patches & Modprobe
 
-What the udev Rule Does
-When the eGPU enclosure connects over USB4/Thunderbolt, the kernel negotiates the link and exposes PCIe bridge nodes under /sys/bus/pci/devices/.
+Running NVIDIA Blackwell (RTX 50-series) eGPUs over USB4/Thunderbolt on Linux presents unique timing and power management challenges. While alternative workflows rely on patching kernel source trees or hardcoding global driver blacklists, **blackwell-egpu-manager** uses dynamic userspace orchestration driven by `udev`.
+
+### What the udev Rule Does
+
+When the eGPU enclosure connects over USB4/Thunderbolt, the kernel negotiates the link and exposes PCIe bridge nodes under `/sys/bus/pci/devices/`. 
 
 Our targeted udev rule triggers on detecting the NVIDIA device signature across the tunnel:
+* **Event Interception**: Catches the device insertion event asynchronously before the driver attempts to bind to an uninitialized bus.
+* **Bus Settling Window**: Introduces a deterministic delay, allowing PCIe bridges, upstream BAR allocations, and Thunderbolt tunneled domains to finish link training.
+* **PCIe Register Optimization (`setpci`)**: Configures critical PCIe registers (such as ASPM Link Control and Extended Capabilities) directly in userspace to prevent link drops.
+* **Coordinated Driver Attachment**: Binds the `nvidia` modules only when the physical bus topology is stable, immediately applying P0 clock locks to prevent power-state crashes.
 
-Event Interception: Catches the device insertion event asynchronously before the driver attempts to bind to an uninitialized bus.
+### Why Dynamic Orchestration is Superior
 
-Bus Settling Window: Introduces a deterministic delay, allowing PCIe bridges, upstream BAR allocations, and Thunderbolt tunneled domains to finish link training.
+* **Zero Maintenance vs. Rebuilding Kernel Modules**: Custom patches applied to `open-gpu-kernel-modules` require manual recompilation with Clang/LLVM on every kernel update. Header mismatches or DKMS failures can break the entire display stack during routine rolling-release updates. The `udev` approach runs purely in userspace using standard, distribution-provided `nvidia-open` packages.
+* **Event-Driven Context vs. Destructive Modprobe Blacklists**: Setting `blacklist nvidia_drm`, `install nvidia_modeset /bin/false`, or forcing static Vulkan ICD JSON files globally cripples the NVIDIA display stack, breaking Vulkan ICD discovery and PRIME offloading. The `udev` approach acts conditionally only when the external hardware is connected, preserving complete Vulkan, OpenGL, CUDA, and PRIME functionality.
+* **Preserved Host Power Management vs. Aggressive Cmdline Flags**: Global options like `pcie_port_pm=off`, `pcie_aspm.policy=performance`, or `pci=realloc=off` degrade power efficiency across all internal devices (NVMe drives, Wi-Fi, iGPU). Flags like `pcie_ports=native` can break platform ACPI `_OSC` negotiation and trigger severe MSI-X interrupt storms. The `udev` approach leaves host ACPI tables and platform power states untouched.
 
-PCIe Register Optimization (setpci): Configures critical PCIe registers (such as ASPM Link Control and Extended Capabilities) directly in userspace to prevent link drops.
+### Comparison Matrix
 
-Coordinated Driver Attachment: Binds the nvidia modules only when the physical bus topology is stable, immediately applying P0 clock locks to prevent power-state crashes.
+| Approach | Maintenance Burden | System Scope | Survives Kernel Updates | Preserves Full Stack (Vulkan/PRIME) |
+| :--- | :--- | :--- | :--- | :--- |
+| **blackwell-egpu-manager (udev)** | **None** (Stock packages) | **Targeted** (On-attach only) | **Yes** | **Yes** (PRIME & direct scanout) |
+| **Kernel Source Patches** | **High** (Recompile on every kernel) | **Driver-wide** (Custom C code) | **No** (Breaks on mismatch) | **Yes** |
+| **Static `modprobe.d` / Cmdline** | **Medium** (Manual overrides) | **Global** (Affects all PCIe devices) | **Yes** | **No** (Breaks display/Vulkan layers) |
 
-Why Dynamic Orchestration is Superior
-1. Zero Maintenance vs. Rebuilding Kernel Modules
-Kernel Patches: Custom patches applied to open-gpu-kernel-modules require manual recompilation with Clang/LLVM on every kernel update. Header mismatches or DKMS failures can easily break the entire display stack during routine rolling-release updates.
-
-udev Approach: Runs purely in userspace using standard, distribution-provided nvidia-open packages. It is fully update-proof and requires no C-level maintenance.
-
-2. Event-Driven Context vs. Destructive Modprobe Blacklists
-Modprobe Overrides: Setting blacklist nvidia_drm, install nvidia_modeset /bin/false, or forcing static Vulkan ICD JSON files globally cripples the NVIDIA display stack. This breaks Vulkan ICD discovery and disables PRIME offloading for desktop applications.
-
-udev Approach: Does not alter global module policies. It acts conditionally only when the external hardware is connected, preserving complete Vulkan, OpenGL, CUDA, and PRIME functionality.
-
-3. Preserved Host Power Management vs. Aggressive Cmdline Flags
-Global Kernel Parameters: Options like pcie_port_pm=off, pcie_aspm.policy=performance, or pci=realloc=off degrade power efficiency across all internal devices (NVMe drives, Wi-Fi, iGPU). Flags like pcie_ports=native can also break platform ACPI _OSC negotiation and trigger severe MSI-X interrupt storms.
-
-udev Approach: Leaves host ACPI tables and platform power states untouched, applying link constraints selectively to the external bridge.
+---
 
 ## ⚠️ Experimental Feature Warning
 

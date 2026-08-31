@@ -32,7 +32,7 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ![Intel Workflow](assets/preview2.png)
 
-Architecture: Dynamic udev Orchestration vs. Kernel Patches & Modprobe
+## 🚀 Architecture: Dynamic udev Orchestration vs. Kernel Patches & Modprobe
 Running NVIDIA Blackwell (RTX 50-series) eGPUs over USB4/Thunderbolt on Linux presents unique timing and power management challenges. While alternative workflows rely on patching kernel source trees or hardcoding global driver blacklists, blackwell-egpu-manager uses dynamic userspace orchestration driven by udev.
 
 What the udev Rule Does

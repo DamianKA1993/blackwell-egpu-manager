@@ -59,7 +59,8 @@ chmod +x install.sh uninstall.sh
 * **Ghost-Free Hardware State Engine**: Direct synchronous querying of `/sys/bus/pci/devices/` and `boltctl` connection states, eliminating phantom devices during hot-unplug events.
 * **PCIe Gen4 / Gen5 & USB4/TB Link Negotiation**: Real-time link speed detection and display (up to 16 GT/s / 32 GT/s PCIe 4.0/5.0) across Intel Barlow Ridge (TB5), Goshen Ridge (TB4), and ASMedia ASM2464PD (USB4) bridges.
 * **Real-Time eGPU Telemetry (Modes 3 & 4)**: Dynamic live monitoring of GPU core usage (%), power draw (W), VRAM allocation, bidirectional PCIe bandwidth (RX/TX in MB/s), and thermals with threshold-based color highlights.
-Deterministic 7-Mode State Machine Engine:
+Deterministic
+* **7-Mode State Machine Engine:
    * Mode 0 (Disconnected): USB4 / PCIe bus detached; zero power draw.
    * Mode 1 (Unauthorized): Device detected via USB4/Thunderbolt, awaiting host authorization.
    * Mode 2 (Standby / Ready): Controller authorized, card recognized on PCIe bus and kept in low-power standby (D3cold).

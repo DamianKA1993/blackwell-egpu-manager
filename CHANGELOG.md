@@ -2,6 +2,21 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.4.0] - 2026-08-31
+
+### Added
+- **Wayland Safe eGPU Detach (Mode 6):** Introduced a non-destructive hardware detaching procedure (`set6`) designed specifically for Wayland session compositors. Safely unbinds NVIDIA PCIe device functions, synchronizes DRM change events, and unloads kernel driver modules. **Note:** Operates strictly from Mode 3 (Hybrid Mode) prior to disabling the internal GPU, ensuring the compositor never loses its active rendering display controller.
+- **Targeted iGPU Restoration (Mode 5):** Added full restoration routine (`set5`) for the integrated graphics adapter via selective PCIe parent bridge rescan (`igpu_parent_bridge`) and DRM uevent triggers.
+- **Parent Bridge Tracking:** Integrated dynamic discovery and caching of the iGPU parent bridge address (`IGPU_PARENT_FILE`) prior to hardware node removal, ensuring deterministic sysfs rescans.
+- **UI Safely Remove Action:** Added a dedicated "Safely Remove eGPU" action button inside the Plasmoid desktop widget for one-click hardware detachment directly from Mode 3.
+
+### Changed & Fixed
+- **Eliminated Kernel Deadlocks & D-State Hangs (set4):** Resolved severe kernel lockups (`kworker/usb_hub_wq`, `i2c_del_adapter`) during iGPU bus disconnects. Implemented a strict teardown sequence: clearing I2C/DRM file descriptor locks (`fuser`), emitting DRM change uevents, executing explicit `driver/unbind`, and then removing the PCI bus device node.
+- **Dynamic Context-Aware UI Buttons:** The primary connect button in the Plasmoid widget dynamically switches between "Connect eGPU" and "Connect iGPU" depending on whether Mode 4 is currently active.
+- **Refined Status Reporting:** Streamlined telemetry badges across all modes; returning from Mode 4 cleanly labels the iGPU as "Active (Restored)" while preserving standard "Hybrid Offload" status formatting for the eGPU.
+- **Cascading State Machine Extension:** Updated the backend dispatch pipeline to handle mode escalations from 2 through 6, incorporating direct short-circuit jumps for Mode 6.
+- **Full Multilingual Localization:** Synchronized and updated localization dictionaries (`i18n.js`) across all 9 supported languages (PL, DE, ES, FR, IT, PT, UK, CS, JA, ZH).
+
 ## [1.3.2] - 2026-08-30
 
 ### Performance & Telemetry Optimization

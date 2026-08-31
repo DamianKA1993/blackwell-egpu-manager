@@ -2,6 +2,8 @@
 
 Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and display switching for **NVIDIA Blackwell (RTX 50xx)** eGPUs on Linux (KDE Plasma 6 Wayland / CachyOS / Arch Linux).
 
+![update140](assets/preview1.png)
+
 ## 💡 Important Notes (Intel Platform & First-Time Setup)
 
 * **Intel Cold-Plug Warning**: On Intel host platforms, connecting the eGPU before powering on the system (cold-plug) may cause PCIe bridge enumeration conflicts, leading to applet initialization errors (such as NVML failing to detect the GPU in early boot). It is strongly recommended to connect/power on the eGPU after the system has fully booted into the desktop.

@@ -32,7 +32,7 @@ PlasmoidItem {
     property string egpuName2: "None"
     property string pcieLink: "N/A"
 
-    // Właściwości telemetrii eGPU (Mode 3 & 4)
+    // Właściwości telemetrii eGPU (Mode 3, 4, 5)
     property int gpuUtil: 0
     property real pwrCurr: 0.0
     property real vramUsed: 0.0
@@ -261,7 +261,12 @@ PlasmoidItem {
                         }
 
                         QQC2.Label {
-                            text: root.currentMode === 4 ? root.tr("Status: Inactive") : (root.currentMode === 3 ? root.tr("Status: Primary Display") : root.tr("Status: Active"))
+                            text: {
+                                if (root.currentMode === 4) return root.tr("Status: Inactive");
+                                if (root.currentMode === 3) return root.tr("Status: Primary Display");
+                                if (root.currentMode === 5) return root.tr("Status: Active (Restored)");
+                                return root.tr("Status: Active");
+                            }
                             font.pixelSize: Kirigami.Units.gridUnit * 0.75
                             opacity: 0.6
                         }
@@ -346,6 +351,7 @@ PlasmoidItem {
                                 if (root.currentMode === 2) return root.tr("Status: Standby (Ready)");
                                 if (root.currentMode === 3) return root.tr("Status: Hybrid Offload");
                                 if (root.currentMode === 4) return root.tr("Status: Dedicated Primary");
+                                if (root.currentMode === 5) return root.tr("Status: Hybrid Offload");
                                 return root.tr("Status: Unknown");
                             }
                             font.pixelSize: Kirigami.Units.gridUnit * 0.75
@@ -522,14 +528,27 @@ PlasmoidItem {
                         visible: root.currentMode >= 2
 
                         QQC2.Button {
-                            text: root.tr("Connect eGPU")
-                            icon.name: root.currentMode === 3 ? "dialog-ok" : "network-connect"
-                            enabled: root.currentMode === 2 && !root.isWaiting
-                            onClicked: backend.setMode(3)
+                            text: {
+                                if (root.currentMode === 4) return root.tr("Connect iGPU");
+                                return root.tr("Connect eGPU");
+                            }
+                            icon.name: {
+                                if (root.currentMode === 4) return "video-television";
+                                if (root.currentMode >= 3) return "dialog-ok";
+                                return "network-connect";
+                            }
+                            enabled: (root.currentMode === 2 || root.currentMode === 4) && !root.isWaiting
+                            onClicked: {
+                                if (root.currentMode === 4) {
+                                    backend.setMode(5);
+                                } else {
+                                    backend.setMode(3);
+                                }
+                            }
                         }
 
                         QQC2.Button {
-                            visible: root.currentMode === 3
+                            visible: root.currentMode >= 3
                             text: root.tr("Screen Manager")
                             icon.name: "preferences-desktop-display"
                             onClicked: backend.openScreenManager()
@@ -539,27 +558,29 @@ PlasmoidItem {
                     RowLayout {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: Kirigami.Units.smallSpacing
-                        visible: root.currentMode >= 2
+                        visible: root.currentMode >= 3
 
                         QQC2.Button {
-                            text: root.tr("eGPU Only (disconnect iGPU)")
-                            icon.name: root.currentMode === 4 ? "dialog-ok" : "video-display"
-                            enabled: (root.currentMode === 2 || root.currentMode === 3) && !root.isWaiting
+                            visible: root.currentMode === 3 || root.currentMode === 5
+                            text: root.currentMode === 5 ? root.tr("iGPU Active") : root.tr("eGPU Only (disconnect iGPU)")
+                            icon.name: root.currentMode === 5 ? "dialog-ok" : "video-display"
+                            enabled: root.currentMode === 3 && !root.isWaiting
                             onClicked: backend.setMode(4)
                         }
 
                         QQC2.Button {
-                            visible: root.currentMode === 4
-                            text: root.tr("Screen Manager")
-                            icon.name: "preferences-desktop-display"
-                            onClicked: backend.openScreenManager()
+                            visible: root.currentMode === 3 || root.currentMode === 5
+                            text: root.tr("Safely Remove eGPU")
+                            icon.name: "media-eject"
+                            enabled: root.currentMode === 3 && !root.isWaiting
+                            onClicked: backend.setMode(6)
                         }
                     }
 
                     QQC2.Label {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.topMargin: Kirigami.Units.smallSpacing
-                        visible: root.currentMode >= 2
+                        visible: root.currentMode === 3
                         text: root.tr("Warning: Disabling the iGPU is experimental. Proceed at your own risk.")
                         font.italic: true
                         font.pixelSize: Kirigami.Units.gridUnit * 0.65

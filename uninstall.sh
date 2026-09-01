@@ -3,7 +3,7 @@ set -e
 
 # ==============================================================================
 # iGPU / Blackwell eGPU Universal Manager - Uninstaller
-# Target: CachyOS / Arch Linux
+# Supports: CLI backend, KDE Plasma, GNOME Shell & Universal Tray Applet
 # ==============================================================================
 
 if [ "$EUID" -eq 0 ]; then
@@ -13,6 +13,9 @@ if [ "$EUID" -eq 0 ]; then
 fi
 
 PLASMA_APPLET_DIR="$HOME/.local/share/plasma/plasmoids/com.github.blackwellegpu"
+GNOME_EXTENSION_DIR="$HOME/.local/share/gnome-shell/extensions/blackwell-egpu@com.github.blackwellegpu"
+TRAY_BIN="/usr/local/bin/blackwell-tray.py"
+AUTOSTART_FILE="$HOME/.config/autostart/blackwell-tray.desktop"
 
 echo "=== 1. Removing CLI backend and sudoers permissions ==="
 if [ -f "/usr/local/bin/blackwell-egpu" ]; then
@@ -53,10 +56,34 @@ fi
 rm -f /tmp/egpu_allow /tmp/egpu_wait
 rm -rf /tmp/blackwell_egpu
 
-echo "=== 3. Removing KDE Plasma 6 applet ==="
+echo "=== 3. Removing GUI Components ==="
+
+# 3a. Universal System Tray Applet
+TRAY_FOUND=false
+if [ -f "$TRAY_BIN" ] || [ -f "$AUTOSTART_FILE" ] || pgrep -f blackwell-tray.py >/dev/null 2>&1; then
+    TRAY_FOUND=true
+    echo "[+] Terminating Universal Tray process..."
+    pkill -f blackwell-tray.py || true
+
+    if [ -f "$TRAY_BIN" ]; then
+        sudo rm -f "$TRAY_BIN"
+        echo "[+] Removed executable: $TRAY_BIN"
+    fi
+
+    if [ -f "$AUTOSTART_FILE" ]; then
+        rm -f "$AUTOSTART_FILE"
+        echo "[+] Removed autostart entry: $AUTOSTART_FILE"
+    fi
+fi
+
+if [ "$TRAY_FOUND" = false ]; then
+    echo "[*] Universal Tray applet was not detected."
+fi
+
+# 3b. KDE Plasma 6 Applet
 if [ -d "$PLASMA_APPLET_DIR" ]; then
     rm -rf "$PLASMA_APPLET_DIR"
-    echo "[+] Removed applet: $PLASMA_APPLET_DIR"
+    echo "[+] Removed Plasma applet: $PLASMA_APPLET_DIR"
 
     # Clear QML / Plasma cache
     rm -rf "$HOME/.cache/plasma"* "$HOME/.cache/qmlcache"*
@@ -72,6 +99,17 @@ if [ -d "$PLASMA_APPLET_DIR" ]; then
     fi
 else
     echo "[*] Plasma applet was not found in user directory."
+fi
+
+# 3c. GNOME Shell Extension
+if [ -d "$GNOME_EXTENSION_DIR" ]; then
+    if command -v gnome-extensions &>/dev/null; then
+        gnome-extensions disable "blackwell-egpu@com.github.blackwellegpu" 2>/dev/null || true
+    fi
+    rm -rf "$GNOME_EXTENSION_DIR"
+    echo "[+] Removed GNOME Shell extension: $GNOME_EXTENSION_DIR"
+else
+    echo "[*] GNOME Shell extension was not found in user directory."
 fi
 
 echo -e "\n[+] Uninstallation completed successfully!"

@@ -1,0 +1,7 @@
+{
+  "name": "Blackwell eGPU Manager",
+  "description": "Status and controls for Blackwell eGPU",
+  "uuid": "blackwell-egpu@com.github.blackwellegpu",
+  "shell-version": ["45", "46", "47"],
+  "url": "https://github.com/DamianKA1993/blackwell-egpu-manager"
+}

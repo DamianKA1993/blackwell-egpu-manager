@@ -2,6 +2,31 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.5.0] - 2026-09-01
+
+> **Notice:** The GNOME Shell extension and Universal Tray applets are currently **experimental / test-only components**. Until comprehensive real-world validation across targeted environments is completed, these components are omitted from the main `README.md` documentation. Users should strictly follow the existing `README.md` instructions and rely exclusively on the **KDE Plasma applet** or the **core CLI backend** for stable operation.
+
+### Added
+- **Dedicated GNOME Shell Extension (`gnome-applet`) [EXPERIMENTAL / UNTESTED]:** Native GJS extension targeting GNOME 45, 46, and 47 with asynchronous telemetry polling via `Gio.Subprocess`. *Note: This component has not been even tested in a live environment yet and is likely **unstable** or non-functional in its current state.*
+- **Standalone Universal Tray (`universal-applet`):** PySide6-based system tray application targeting XFCE, Cinnamon, MATE, LXQt, and standalone window managers/Wayland compositors. *Note: Verified on CachyOS/KDE; requires further validation on other desktop environments. Not intended for out-of-the-box GNOME use without AppIndicator support.*
+- **Dedicated udev Directory (`udev/`):** Extracted `99-blackwell-egpu.rules` into a separate directory for cleaner repository modularity and independent configuration maintenance.
+- **Smart Desktop Environment Detection:** `install.sh` automatically detects the active desktop environment (KDE Plasma, GNOME Shell, or generic) and suggests the appropriate native integration by default.
+- **Mutual Desktop Component Collision Handling:** Automated detection and optional cleanup of existing or alternative applets during fresh installations and environment transitions.
+- **XDG Autostart Management:** Standardized `.desktop` service deployment for non-KDE/non-GNOME desktop sessions.
+
+### Changed
+- **Modular Repository Architecture:** Restructured GUI applets and system rules into isolated subdirectories (`plasma-applet/`, `gnome-applet/`, `universal-applet/`, `udev/`).
+- **Standardized Domain Namespace:** Updated extension metadata and D-Bus integration identifiers to `blackwell-egpu@com.github.blackwellegpu`.
+- **Enhanced Dependency Diagnostics:** Explicit runtime validation for `PySide6` with per-distribution package management hints (`pacman`, `apt`, `dnf`, `zypper`) and opt-in automated installation.
+- **Installer Refactoring:** `install.sh` streamlined to copy discrete assets from `udev/` and applet subdirectories instead of embedding inline rule blocks.
+- **Comprehensive Uninstaller (`uninstall.sh`):** Updated the uninstaller to detect and cleanly purge all newly introduced components, including GNOME extension files, standalone tray binaries, and XDG autostart entries alongside legacy Plasma assets.
+
+### Fixed
+- **PCIe Rescan Enumeration Race Condition (`set3`):** Added a polling retry loop to wait for NVIDIA PCIe identifiers (`10de:`) to settle following bus rescan, preventing premature fallback to Mode 2 caused by silent subprocess execution.
+- **Subshell Stream & State Leaks:** Fully silenced `boltctl` and `setpci` calls (`>/dev/null 2>&1`) across Modes 2 and 3, preventing status tree output from corrupting state cache.
+- **Non-Blocking Telemetry Acquisition:** Eliminated main UI thread hangs during CLI status queries in the GNOME Shell extension.
+- **Clean Migration Cleanup:** Fixed residual autostart entries and leftover binaries when switching between different applet types using `install.sh`.
+
 ## [1.4.1] - 2026-09-01
 
 ### Fixed

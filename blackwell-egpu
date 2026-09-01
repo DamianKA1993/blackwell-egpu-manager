@@ -192,8 +192,7 @@ set2() {
     DEV_UUID=$(boltctl list 2>/dev/null | grep -B5 -E 'status:[[:space:]]+connected$' | grep -m1 "uuid:" | cut -d ':' -f2 | xargs || true)
 
     if [ -n "$DEV_UUID" ]; then
-        #boltctl authorize "$DEV_UUID" 2>/dev/null || true
-        boltctl enroll "$DEV_UUID" 2>/dev/null || true
+        boltctl enroll "$DEV_UUID" >/dev/null 2>&1 || true
     fi
 
     local BOLT_INFO
@@ -211,15 +210,14 @@ set3() {
     # Mode 3: Hybrid mode (iGPU + eGPU / load NVIDIA modules, PCIe retraining)
     # Mode 3: Tryb hybrydowy (iGPU + eGPU / moduły nvidia, retraining PCIe)
     if ! lsmod | grep -q "^nvidia "; then
-        #fuser -k /dev/nvidia* 2>/dev/null || true
         fuser -k /dev/nvidia* >/dev/null 2>&1 || true
-        modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia 2>/dev/null || true
+        modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia >/dev/null 2>&1 || true
 
         if command -v boltctl >/dev/null 2>&1; then
             local PENDING_UUIDS
             PENDING_UUIDS=$(boltctl list 2>/dev/null | awk '/ ● / {uuid=$2} /status:[[:space:]]+(connected|authorizing)/ {print uuid}' || true)
             for uuid in $PENDING_UUIDS; do
-                boltctl enroll --policy auto "$uuid" 2>/dev/null || boltctl authorize "$uuid" 2>/dev/null || true
+                boltctl enroll --policy auto "$uuid" >/dev/null 2>&1 || boltctl authorize "$uuid" >/dev/null 2>&1 || true
             done
         fi
 
@@ -228,8 +226,18 @@ set3() {
         udevadm settle --timeout=2 2>/dev/null || true
         rm -f /tmp/egpu_allow
 
-        local GPU_FULL_PCI
-        GPU_FULL_PCI=$(lspci -D -d 10de: -nn 2>/dev/null | grep -iE "VGA|3D" | awk '{print $1}' | head -n 1 || true)
+        # Czekaj do 2 sekund na pojawienie się karty na magistrali PCI
+        local GPU_FULL_PCI=""
+        local retries=0
+        while [ $retries -lt 20 ]; do
+            GPU_FULL_PCI=$(lspci -D -d 10de: -nn 2>/dev/null | grep -iE "VGA|3D" | awk '{print $1}' | head -n 1 || true)
+            if [ -n "$GPU_FULL_PCI" ]; then
+                break
+            fi
+            sleep 0.1
+            retries=$((retries + 1))
+        done
+
         if [ -z "$GPU_FULL_PCI" ]; then
             echo "2"
             return 0
@@ -243,17 +251,17 @@ set3() {
         echo performance > /sys/module/pcie_aspm/parameters/policy 2>/dev/null || true
 
         for node in "${BRIDGE_LIST[@]}"; do
-            setpci -s "$node" CAP_EXP+10.w=0000 2>/dev/null || true
-            setpci -s "$node" ECAP_1E+04.l=00000000 2>/dev/null || true
+            setpci -s "$node" CAP_EXP+10.w=0000 >/dev/null 2>&1 || true
+            setpci -s "$node" ECAP_1E+04.l=00000000 >/dev/null 2>&1 || true
         done
 
         if [ "$TOTAL_NODES" -ge 2 ]; then
             PARENT_PORT="${BRIDGE_LIST[$((TOTAL_NODES - 2))]}"
             TARGET_HEX=$(negotiate_optimal_link_speed "$GPU_FULL_PCI" "$PARENT_PORT")
 
-            setpci -s "$PARENT_PORT" CAP_EXP+30.w="$TARGET_HEX:002f" 2>/dev/null || true
-            setpci -s "$GPU_FULL_PCI" CAP_EXP+30.w="$TARGET_HEX:002f" 2>/dev/null || true
-            setpci -s "$PARENT_PORT" CAP_EXP+10.w=0020:0020 2>/dev/null || true
+            setpci -s "$PARENT_PORT" CAP_EXP+30.w="$TARGET_HEX:002f" >/dev/null 2>&1 || true
+            setpci -s "$GPU_FULL_PCI" CAP_EXP+30.w="$TARGET_HEX:002f" >/dev/null 2>&1 || true
+            setpci -s "$PARENT_PORT" CAP_EXP+10.w=0020:0020 >/dev/null 2>&1 || true
 
             local retries=0
             while [ $retries -lt 30 ]; do
@@ -269,13 +277,13 @@ set3() {
         fi
 
         sleep 0.5
-        modprobe nvidia NVreg_DynamicPowerManagement=0x00 2>/dev/null || true
+        modprobe nvidia NVreg_DynamicPowerManagement=0x00 >/dev/null 2>&1 || true
 
         if [ -n "${PARENT_PORT:-}" ]; then
-            setpci -s "$PARENT_PORT" CAP_EXP+30.w="$TARGET_HEX:002f" 2>/dev/null || true
+            setpci -s "$PARENT_PORT" CAP_EXP+30.w="$TARGET_HEX:002f" >/dev/null 2>&1 || true
         fi
 
-        modprobe nvidia_modeset nvidia_drm nvidia_uvm 2>/dev/null || true
+        modprobe nvidia_modeset nvidia_drm nvidia_uvm >/dev/null 2>&1 || true
         udevadm settle || true
 
         nvidia-smi -pm 1 >/dev/null 2>&1 || true
@@ -354,8 +362,6 @@ set4() {
             local audio_addr="${base_slot}.1"
 
             # 2. Zwolnij procesy trzymające I2C / DRM na kontrolerze iGPU
-            #fuser -k /dev/i2c-* 2>/dev/null || true
-            #fuser -k "/sys/bus/pci/devices/$addr" 2>/dev/null || true
             fuser -k /dev/i2c-* >/dev/null 2>&1 || true
             fuser -k "/sys/bus/pci/devices/$addr" >/dev/null 2>&1 || true
             sleep 0.2
@@ -375,14 +381,10 @@ set4() {
                 echo 1 > "/sys/bus/pci/devices/$audio_addr/remove" 2>/dev/null || true
             fi
 
-
-
             # Remove iGPU display controller with safety guard
             # Odcięcie magistrali graficznej iGPU z asekuracją || true
             echo 1 > "/sys/bus/pci/devices/$addr/remove" 2>/dev/null || true
             found_igpu=1
-
-
         fi
     done
 
@@ -392,7 +394,6 @@ set4() {
     echo "4" > "$STATE_FILE"
     echo "4"
 }
-
 
 set5() {
     # Mode 5: Universal iGPU restore (AMD amdgpu / Intel i915 / Intel xe)

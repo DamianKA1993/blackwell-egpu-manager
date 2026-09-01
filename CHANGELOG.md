@@ -2,6 +2,14 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.4.1] - 2026-09-01
+
+### Fixed
+- **Process ID Leakage into State Cache:** Fully redirected stdout and stderr (`>/dev/null 2>&1`) across all `fuser` calls in `set3` and `set4`, preventing killed process IDs from corrupting `/tmp/blackwell_egpu/mode`.
+- **Safe Detach Bus Teardown Guard:** Added explicit write and directory validation (`[ -w "$dev/remove" ]`) before triggering PCIe function removal in `set6`.
+- **State File Output Sanitization:** Added deterministic numeric filtering (`tr -dc '0-9'`) and fallback handling when dispatching Mode 6 transitions.
+- **Telemetry Cache Invalidation:** Ensured stale PCIe traffic metrics cache (`$TRAFFIC_CACHE`) is immediately cleared upon executing safe eGPU detach.
+
 ## [1.4.0] - 2026-08-31
 
 ### Added

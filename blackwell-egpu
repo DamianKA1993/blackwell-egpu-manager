@@ -211,7 +211,8 @@ set3() {
     # Mode 3: Hybrid mode (iGPU + eGPU / load NVIDIA modules, PCIe retraining)
     # Mode 3: Tryb hybrydowy (iGPU + eGPU / moduły nvidia, retraining PCIe)
     if ! lsmod | grep -q "^nvidia "; then
-        fuser -k /dev/nvidia* 2>/dev/null || true
+        #fuser -k /dev/nvidia* 2>/dev/null || true
+        fuser -k /dev/nvidia* >/dev/null 2>&1 || true
         modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia 2>/dev/null || true
 
         if command -v boltctl >/dev/null 2>&1; then
@@ -353,8 +354,10 @@ set4() {
             local audio_addr="${base_slot}.1"
 
             # 2. Zwolnij procesy trzymające I2C / DRM na kontrolerze iGPU
-            fuser -k /dev/i2c-* 2>/dev/null || true
-            fuser -k "/sys/bus/pci/devices/$addr" 2>/dev/null || true
+            #fuser -k /dev/i2c-* 2>/dev/null || true
+            #fuser -k "/sys/bus/pci/devices/$addr" 2>/dev/null || true
+            fuser -k /dev/i2c-* >/dev/null 2>&1 || true
+            fuser -k "/sys/bus/pci/devices/$addr" >/dev/null 2>&1 || true
             sleep 0.2
             # Powiadomienie DRM o zmianie konfiguracji i pauza na zwolnienie uchwytów
             udevadm trigger --subsystem-match=drm --action=change 2>/dev/null || true
@@ -424,41 +427,42 @@ set6() {
     # Mode 6: Bezpieczne odpięcie eGPU bez ubijania kompozytora Wayland
 
     # 1. Clear persistent flags first
-    rm -f "$EGPU_ONLY_FILE" "$LINK_FILE" "$EGPU2_FILE"
+    rm -f "$EGPU_ONLY_FILE" "$LINK_FILE" "$EGPU2_FILE" "$TRAFFIC_CACHE"
 
-
-    # 1. Sprawdzenie, czy iGPU jest aktywne w magistrali (asekuracja, jeśli ktoś wywoła set6 bezpośrednio z trybu 4)
+    # 2. Verify iGPU presence before dropping eGPU
     local igpu_present
     igpu_present=$(lspci -nn 2>/dev/null | grep -iE "VGA|3D" | grep -iE "1002:|8086:" | head -n1 || true)
     if [ -z "$igpu_present" ]; then
-    # Jeśli iGPU nadal nie ma w PCI, wywołaj bezpieczny rescan przed odcięciem eGPU
         echo 1 > /sys/bus/pci/rescan 2>/dev/null || true
         udevadm settle --timeout=2 2>/dev/null || true
     fi
 
-    # 2. Powiadomienie DRM o zmianie konfiguracji wyjść przed ucięciem szyny
+    # 3. Trigger DRM change event
     udevadm trigger --subsystem-match=drm --action=change 2>/dev/null || true
     udevadm settle --timeout=1 2>/dev/null || true
 
-
-    # 3. Bezpieczne odcięcie węzłów PCIe NVIDIA
+    # 4. Safely remove NVIDIA PCIe device functions
     local GPU_FULL_PCI
     GPU_FULL_PCI=$(lspci -D -d 10de: -nn 2>/dev/null | grep -iE "VGA|3D" | awk '{print $1}' | head -n 1 || true)
     if [ -n "${GPU_FULL_PCI:-}" ]; then
         local GPU_SLOT="${GPU_FULL_PCI%.*}"
         for dev in "/sys/bus/pci/devices/${GPU_SLOT}".*; do
-            [ -f "$dev/remove" ] && echo 1 > "$dev/remove" 2>/dev/null || true
+            if [ -d "$dev" ] && [ -w "$dev/remove" ]; then
+                echo 1 > "$dev/remove" 2>/dev/null || true
+            fi
         done
     fi
 
-    # 4. Synchronizacja usunięcia z udev
+    # 5. Settle udev queue
     udevadm settle --timeout=2 2>/dev/null || true
 
-    # 5. Softly unload NVIDIA modules (ignore if busy by inactive DRM hold)
+    # 6. Softly unload NVIDIA modules
     modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia >/dev/null 2>&1 || true
 
+    # 7. Reset wait state
     echo "0" > "$WAIT_FILE"
-    echo "2" > "$STATE_FILE"
+
+    # Clean single-digit return value
     echo "2"
 }
 
@@ -478,8 +482,8 @@ if [ "$ACTION" = "set" ]; then
         if [ "$CURRENT" = "3" ]; then
             echo "1" > "$WAIT_FILE"
             trap 'echo "0" > "$WAIT_FILE"' EXIT INT TERM
-            RESULT=$(set6)
-            echo "$RESULT" > "$STATE_FILE"
+            RESULT=$(set6 | tail -n1 | tr -dc '0-9')
+            echo "${RESULT:-2}" > "$STATE_FILE"
             exit 0
         fi
         exit 0

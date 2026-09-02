@@ -191,8 +191,7 @@ graph TD
     M2 -->|Connect eGPU| M3["3: Hybrid Offload"]
     
     M3 -->|eGPU Only| M4["4: Dedicated eGPU"]
-    M4 -->|Restore iGPU| M5["5: Restore iGPU"]
-    M5 --> M3
+    M4 -->|Restore iGPU| M5["5: Restored iGPU (Terminal State)"]
     
     M3 -->|Safely Remove| M6["6: Safe Detach"]
     M6 --> M2

@@ -164,9 +164,13 @@ chmod +x install.sh uninstall.sh
 The installer will interactively guide you through:
 1. Verifying NVIDIA Open kernel module presence.
 2. Installing the `/usr/local/bin/blackwell-egpu` backend CLI.
-3. Setting up passwordless sudoers permissions for state switching.
-4. *(Optional)* Deploying udev rules to prevent PCIe link stalls during hot-plug.
-5. *(Optional)* Installing the KDE Plasma 6 widget with optional multi-language localization.
+3. Setting up passwordless `sudoers` permissions for state switching.
+4. *(Optional)* Deploying `udev` rules to prevent PCIe link stalls during hot-plug.
+5. **Smart Desktop Environment Detection:** Automatically detects your active desktop session and suggests the optimal integration:
+  * **KDE Plasma 6:** Installs the native QML Plasmoid widget with optional multi-language localization.
+  * **GNOME Shell:** Deploys and enables the native GJS top-bar extension with automatic schema registration.
+  * **Generic / Other DEs (Cinnamon, XFCE, MATE, tiling WMs):** Installs the lightweight PyGObject Universal Tray applet with XDG autostart.
+  * **Headless / CLI Mode:** Installs only the core backend tools for pure terminal workflows.
 
 ---
 

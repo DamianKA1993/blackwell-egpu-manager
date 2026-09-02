@@ -102,14 +102,45 @@ else
 fi
 
 # 3c. GNOME Shell Extension
-if [ -d "$GNOME_EXTENSION_DIR" ]; then
+UUID="blackwell-egpu@com.github.blackwellegpu"
+
+if [ -d "$GNOME_EXTENSION_DIR" ] || (command -v gsettings &>/dev/null && gsettings get org.gnome.shell enabled-extensions 2>/dev/null | grep -q "$UUID"); then
+    # 1. Wyłączenie natychmiast zdejmuje aplet z paska GNOME
     if command -v gnome-extensions &>/dev/null; then
-        gnome-extensions disable "blackwell-egpu@com.github.blackwellegpu" 2>/dev/null || true
+        gnome-extensions disable "$UUID" 2>/dev/null || true
     fi
-    rm -rf "$GNOME_EXTENSION_DIR"
-    echo "[+] Removed GNOME Shell extension: $GNOME_EXTENSION_DIR"
+
+    # 2. Usunięcie plików rozszerzenia
+    if [ -d "$GNOME_EXTENSION_DIR" ]; then
+        rm -rf "$GNOME_EXTENSION_DIR"
+        echo "[+] Removed GNOME Shell extension directory: $GNOME_EXTENSION_DIR"
+    fi
+
+    # 3. Wyczyszczenie UUID z bazy org.gnome.shell enabled-extensions
+    if command -v gsettings &>/dev/null; then
+        CURRENT_EXTS=$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo "[]")
+        if echo "$CURRENT_EXTS" | grep -q "$UUID"; then
+            python3 -c "
+import ast, subprocess
+try:
+    raw = '''$CURRENT_EXTS'''
+    exts = ast.literal_eval(raw)
+    exts = [e for e in exts if e != '$UUID']
+    cmd = ['gsettings', 'set', 'org.gnome.shell', 'enabled-extensions', str(exts)]
+    subprocess.run(cmd, check=True)
+except Exception:
+    pass
+" 2>/dev/null || true
+            echo "[+] Unregistered extension UUID from GNOME settings."
+        fi
+
+        if command -v dconf &>/dev/null; then
+            dconf reset -f "/org/gnome/shell/extensions/blackwell-egpu/" 2>/dev/null || true
+        fi
+    fi
+    echo "[+] GNOME Shell extension removed and disabled."
 else
-    echo "[*] GNOME Shell extension was not found in user directory."
+    echo "[*] GNOME Shell extension was not found."
 fi
 
 echo -e "\n[+] Uninstallation completed successfully!"

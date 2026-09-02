@@ -110,30 +110,39 @@ remove_tray() {
 }
 
 install_tray() {
-    echo "[+] Checking PySide6 dependency..."
-    if ! python3 -c "import PySide6" >/dev/null 2>&1; then
-        PKG_NAME="python3-pyside6"
-        [ -x "$(command -v pacman)" ] && PKG_NAME="python-pyside6"
+    echo "[+] Checking GTK / AyatanaAppIndicator dependencies..."
 
-        echo "----------------------------------------------------------------------"
-        echo "[!] MISSING DEPENDENCY: PySide6 library is required for Universal Tray."
-        echo "    Missing package: '$PKG_NAME'"
-        echo "----------------------------------------------------------------------"
-        read -r -p "Press [Enter] to acknowledge..."
+    set +e
+    python3 -c "
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+try:
+    gi.require_version('AyatanaAppIndicator3', '0.1')
+except ValueError:
+    gi.require_version('AppIndicator3', '0.1')
+" >/dev/null 2>&1
+    GI_STATUS=$?
+    set -e
 
-        read -r -p "Install '$PKG_NAME' automatically now? [y/N]: " DEP_CHOICE
-        DEP_CHOICE=${DEP_CHOICE:-N}
+    if [ $GI_STATUS -ne 0 ]; then
+        echo "----------------------------------------------------------------------"
+        echo "[!] MISSING DEPENDENCY: GTK3 AppIndicator libraries are required."
+        echo "----------------------------------------------------------------------"
+
+        read -r -p "Install native indicator libraries automatically now? [Y/n]: " DEP_CHOICE
+        DEP_CHOICE=${DEP_CHOICE:-Y}
         if [[ "$DEP_CHOICE" =~ ^[Yy]$ ]]; then
             if command -v pacman &>/dev/null; then
-                sudo pacman -S --needed --noconfirm python-pyside6
+                sudo pacman -S --needed --noconfirm python-gobject libayatana-appindicator gtk3
             elif command -v apt-get &>/dev/null; then
-                sudo apt-get update -qq && sudo apt-get install -y python3-pyside6
+                sudo apt-get update -qq && sudo apt-get install -y python3-gi gir1.2-ayatanaappindicator3-0.1 gir1.2-gtk-3.0
             elif command -v dnf &>/dev/null; then
-                sudo dnf install -y python3-pyside6
+                sudo dnf install -y python3-gobject libayatana-appindicator-gtk3 gtk3
             elif command -v zypper &>/dev/null; then
-                sudo zypper install -y python3-pyside6
+                sudo zypper install -y python3-gobject typelib-1_0-AyatanaAppIndicator3-0_1 gtk3
             else
-                echo "[-] Package manager not supported for auto-install. Install PySide6 manually."
+                echo "[-] Package manager not supported for auto-install. Please install AyatanaAppIndicator manually."
                 return 1
             fi
         else
@@ -173,13 +182,13 @@ if [[ "$CURRENT_DESKTOP_ENV" =~ [Kk][Dd][Ee] ]]; then
     echo "[+] Detected Desktop Environment: KDE Plasma"
     echo "Select GUI integration option:"
     echo "  1) Native KDE Plasma 6 Applet (Plasmoid widget) [Default]"
-    echo "  2) Universal System Tray Applet (PySide6 / Standalone)"
-    echo "  3) Skip GUI installation (CLI only)"
-    read -r -p "Enter choice [1-3] (default: 1): " GUI_CHOICE
-    GUI_CHOICE=${GUI_CHOICE:-1}
-    [ "$GUI_CHOICE" -eq 1 ] && CHOSEN="kde"
-    [ "$GUI_CHOICE" -eq 2 ] && CHOSEN="tray"
-    [ "$GUI_CHOICE" -eq 3 ] && CHOSEN="skip"
+    echo "  2) Skip GUI installation (CLI only)"
+    read -r -p "Enter choice [1-2] (default: 1): " GUI_CHOICE
+    case "${GUI_CHOICE:-1}" in
+        1) CHOSEN="kde" ;;
+        2) CHOSEN="skip" ;;
+        *) CHOSEN="kde" ;;
+    esac
 
 elif [[ "$CURRENT_DESKTOP_ENV" =~ [Gg][Nn][Oo][Mm][Ee] ]]; then
     echo "[+] Detected Desktop Environment: GNOME Shell"
@@ -187,22 +196,26 @@ elif [[ "$CURRENT_DESKTOP_ENV" =~ [Gg][Nn][Oo][Mm][Ee] ]]; then
     echo "  1) Native GNOME Shell Extension [Default]"
     echo "  2) Skip GUI installation (CLI only)"
     read -r -p "Enter choice [1-2] (default: 1): " GUI_CHOICE
-    GUI_CHOICE=${GUI_CHOICE:-1}
-    [ "$GUI_CHOICE" -eq 1 ] && CHOSEN="gnome"
-    [ "$GUI_CHOICE" -eq 2 ] && CHOSEN="skip"
+    case "${GUI_CHOICE:-1}" in
+        1) CHOSEN="gnome" ;;
+        2) CHOSEN="skip" ;;
+        *) CHOSEN="gnome" ;;
+    esac
 
 else
     echo "[!] Detected Desktop Environment: ${CURRENT_DESKTOP_ENV:-Generic/X11/Wayland}"
     echo "    No native shell extension available for this desktop."
-    echo "    The Universal System Tray Applet (PySide6) will be used."
+    echo "    The Universal System Tray Applet (Native GTK / Ayatana) will be used."
     echo ""
     echo "Select GUI integration option:"
-    echo "  1) Universal System Tray Applet (PySide6 / Standalone) [Default]"
+    echo "  1) Universal System Tray Applet (Native GTK / Ayatana) [Default]"
     echo "  2) Skip GUI installation (CLI only)"
     read -r -p "Enter choice [1-2] (default: 1): " GUI_CHOICE
-    GUI_CHOICE=${GUI_CHOICE:-1}
-    [ "$GUI_CHOICE" -eq 1 ] && CHOSEN="tray"
-    [ "$GUI_CHOICE" -eq 2 ] && CHOSEN="skip"
+    case "${GUI_CHOICE:-1}" in
+        1) CHOSEN="tray" ;;
+        2) CHOSEN="skip" ;;
+        *) CHOSEN="tray" ;;
+    esac
 fi
 
 # Obsługa kolizji z wcześniej zainstalowanymi apletami
@@ -248,12 +261,62 @@ case "$CHOSEN" in
         mkdir -p "$(dirname "$GNOME_DEST")"
         rm -rf "$GNOME_DEST"
         cp -r "$GNOME_SRC" "$GNOME_DEST"
+        echo "[+] GNOME Shell extension files copied."
 
-        if command -v gnome-extensions &>/dev/null; then
-            gnome-extensions enable "blackwell-egpu@com.github.blackwellegpu" 2>/dev/null || true
+        # Pytanie o automatyczne włączenie apletu z domyślnym wyborem: TAK
+        read -r -p "Enable Blackwell eGPU extension by default? [Y/n]: " ENABLE_EXT_CHOICE
+        ENABLE_EXT_CHOICE=${ENABLE_EXT_CHOICE:-Y}
+
+        if [[ "$ENABLE_EXT_CHOICE" =~ ^[Yy]$ ]]; then
+            UUID="blackwell-egpu@com.github.blackwellegpu"
+
+            # 1. Próba standardowa przez CLI GNOME
+            if command -v gnome-extensions &>/dev/null; then
+                gnome-extensions enable "$UUID" 2>/dev/null || true
+            fi
+
+            # 2. Bezpośrednie wstrzyknięcie do dconf/gsettings (kluczowe na świeżej sesji / Live CD)
+            if command -v gsettings &>/dev/null; then
+                CURRENT_EXTS=$(gsettings get org.gnome.shell enabled-extensions)
+                if ! echo "$CURRENT_EXTS" | grep -q "$UUID"; then
+                    if [ "$CURRENT_EXTS" = "@as []" ] || [ "$CURRENT_EXTS" = "[]" ]; then
+                        NEW_EXTS="['$UUID']"
+                    else
+                        NEW_EXTS="${CURRENT_EXTS%]}, '$UUID']"
+                    fi
+                    gsettings set org.gnome.shell enabled-extensions "$NEW_EXTS" 2>/dev/null || true
+                fi
+            fi
+            echo "[+] Extension marked as enabled in GNOME configuration."
+        else
+            echo "[*] Extension installed in disabled state."
         fi
-        echo "[+] GNOME Shell extension deployed and enabled."
-        echo "[*] Note: On Wayland, you may need to log out and log back in to load new GNOME extensions."
+
+        # Wykrywanie typu sesji i propozycja restartu powłoki / sesji
+        SESSION_TYPE="${XDG_SESSION_TYPE:-unknown}"
+
+        if [ "$SESSION_TYPE" = "wayland" ]; then
+            echo "----------------------------------------------------------------------"
+            echo "[!] Notice: Running on Wayland. GNOME cannot reload extensions in-place."
+            echo "    A session restart is required to load/update the extension."
+            echo "    WARNING: This will close your open applications and log you out."
+            echo "----------------------------------------------------------------------"
+            read -r -p "Restart GNOME session now? [y/N]: " RESTART_GNOME
+            RESTART_GNOME=${RESTART_GNOME:-N}
+            if [[ "$RESTART_GNOME" =~ ^[Yy]$ ]]; then
+                echo "[*] Restarting GNOME session..."
+                systemctl --user restart gnome-session.target 2>/dev/null || gnome-session-quit --logout --no-prompt
+            else
+                echo "[*] Skipping restart. Please log out and log back in manually."
+            fi
+        else
+            read -r -p "Restart GNOME Shell to load extension now? [Y/n]: " RESTART_GNOME
+            RESTART_GNOME=${RESTART_GNOME:-Y}
+            if [[ "$RESTART_GNOME" =~ ^[Yy]$ ]]; then
+                busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart("Restarting…")' >/dev/null 2>&1 || true
+                echo "[+] GNOME Shell reloaded."
+            fi
+        fi
         ;;
 
     tray)

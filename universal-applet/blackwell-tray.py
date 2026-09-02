@@ -2,47 +2,43 @@
 import json
 import shutil
 import subprocess
-import sys
 import threading
 import time
 
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+import gi
+gi.require_version('Gtk', '3.0')
+try:
+    gi.require_version('AyatanaAppIndicator3', '0.1')
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator
+except (ValueError, ImportError):
+    gi.require_version('AppIndicator3', '0.1')
+    from gi.repository import AppIndicator3 as AppIndicator
+
+from gi.repository import Gtk, GLib
 
 CLI_PATH = "/usr/local/bin/blackwell-egpu"
 HEADER_TEXT = "----------------- Blackwell eGPU Manager -----------------"
 
-class DataBridge(QObject):
-    data_received = Signal(dict)
+class BlackwellTrayGTK:
+    def __init__(self):
+        self.indicator = AppIndicator.Indicator.new(
+            "blackwell-egpu-tray",
+            "video-display",
+            AppIndicator.IndicatorCategory.HARDWARE
+        )
+        self.indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE)
 
-class BlackwellTray(QSystemTrayIcon):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.bridge = DataBridge()
-        self.bridge.data_received.connect(self.update_menu)
-
-        # Inicjalizacja stałego menu PPM
-        self.menu = QMenu()
+        self.menu = Gtk.Menu()
         self.init_menu_structure()
-        self.setContextMenu(self.menu)
-
-        # Obsługa LPM (Screen Settings)
-        self.activated.connect(self.on_tray_activated)
-
-        self.current_icon_mode = None
-        self.setIcon(QIcon.fromTheme("video-display"))
-        self.setVisible(True)
+        self.indicator.set_menu(self.menu)
 
         self.running = True
+        self.current_icon_mode = None
+
         self.thread = threading.Thread(target=self.poll_backend, daemon=True)
         self.thread.start()
 
-    def on_tray_activated(self, reason):
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
-            self.open_display_settings()
-
-    def open_display_settings(self):
+    def open_display_settings(self, *args):
         commands = [
             ["kcmshell6", "kcm_kscreen"],
             ["kcmshell5", "kcm_kscreen"],
@@ -59,75 +55,94 @@ class BlackwellTray(QSystemTrayIcon):
                 subprocess.Popen(cmd)
                 return
 
-    def init_menu_structure(self):
-        # Aktywny nagłówek rozpychający
-        self.act_header = self.menu.addAction(HEADER_TEXT)
-        self.act_header.triggered.connect(self.open_display_settings)
-
-        # Tytuł sekcji eGPU
-        self.act_section = self.menu.addAction("eGPU:")
-        self.act_section.setEnabled(False)
-
-        # Informacje o urządzeniu
-        self.act_device = self.menu.addAction("")
-        self.act_box = self.menu.addAction("")
-        self.act_auth = self.menu.addAction("")
-        self.act_speed = self.menu.addAction("")
-        self.act_status = self.menu.addAction("")
-
-        # Separator telemetrii
-        self.sep_telemetry = self.menu.addSeparator()
-
-        # Telemetria aktywna
-        self.act_usage = self.menu.addAction("")
-        self.act_vram = self.menu.addAction("")
-        self.act_transfer = self.menu.addAction("")
-        self.act_temp = self.menu.addAction("")
-
-        # Separator akcji
-        self.sep_actions = self.menu.addSeparator()
-
-        # Ostrzeżenie
-        self.act_warn = self.menu.addAction("⚠ Warning: Disabling the iGPU is experimental ⚠")
-        self.act_warn.setEnabled(False)
-
-        # Przyciski sterujące
-        self.act_btn_auth = self.menu.addAction("Authorize eGPU")
-        self.act_btn_auth.triggered.connect(lambda: self.run_cmd(2))
-
-        self.act_btn_connect = self.menu.addAction("Connect eGPU (Hybrid Offload)")
-        self.act_btn_connect.triggered.connect(lambda: self.run_cmd(3))
-
-        self.act_btn_dedic = self.menu.addAction("⚠ eGPU Only (disconnect iGPU) ⚠")
-        self.act_btn_dedic.triggered.connect(lambda: self.run_cmd(4))
-
-        self.act_btn_detach = self.menu.addAction("Safely Remove eGPU")
-        self.act_btn_detach.triggered.connect(lambda: self.run_cmd(6))
-
-        self.act_btn_restore = self.menu.addAction("Connect iGPU (Restore)")
-        self.act_btn_restore.triggered.connect(lambda: self.run_cmd(5))
-
-        self.act_info_final = self.menu.addAction("iGPU Active (Terminal State)")
-        self.act_info_final.setEnabled(False)
-
-        # Ustawienia ekranu
-        self.menu.addSeparator()
-        self.act_display_settings = self.menu.addAction("Display Settings...")
-        self.act_display_settings.triggered.connect(self.open_display_settings)
-
-        # Separator przed wyjściem
-        self.menu.addSeparator()
-
-        # Wyjście
-        self.act_quit = self.menu.addAction("Exit (will close tray icon and daemon)")
-        self.act_quit.triggered.connect(self.quit_app)
-
-    def quit_app(self):
-        self.running = False
-        QApplication.quit()
-
     def run_cmd(self, mode):
         subprocess.Popen(["sudo", CLI_PATH, "set", str(mode)])
+
+    def quit_app(self, *args):
+        self.running = False
+        Gtk.main_quit()
+
+    def init_menu_structure(self):
+        # Nagłówek
+        self.item_header = Gtk.MenuItem(label=HEADER_TEXT)
+        self.item_header.connect("activate", self.open_display_settings)
+        self.menu.append(self.item_header)
+
+        # Sekcja eGPU
+        self.item_section = Gtk.MenuItem(label="eGPU:")
+        self.item_section.set_sensitive(False)
+        self.menu.append(self.item_section)
+
+        # Informacje o urządzeniu
+        self.item_device = Gtk.MenuItem(label="")
+        self.item_box = Gtk.MenuItem(label="")
+        self.item_auth = Gtk.MenuItem(label="")
+        self.item_speed = Gtk.MenuItem(label="")
+        self.item_status = Gtk.MenuItem(label="")
+
+        for it in (self.item_device, self.item_box, self.item_auth, self.item_speed, self.item_status):
+            self.menu.append(it)
+
+        # Separator telemetrii
+        self.sep_telemetry = Gtk.SeparatorMenuItem()
+        self.menu.append(self.sep_telemetry)
+
+        # Telemetria aktywna
+        self.item_usage = Gtk.MenuItem(label="")
+        self.item_vram = Gtk.MenuItem(label="")
+        self.item_transfer = Gtk.MenuItem(label="")
+        self.item_temp = Gtk.MenuItem(label="")
+
+        for it in (self.item_usage, self.item_vram, self.item_transfer, self.item_temp):
+            self.menu.append(it)
+
+        # Separator akcji
+        self.sep_actions = Gtk.SeparatorMenuItem()
+        self.menu.append(self.sep_actions)
+
+        # Ostrzeżenie
+        self.item_warn = Gtk.MenuItem(label="⚠ Warning: Disabling the iGPU is experimental ⚠")
+        self.item_warn.set_sensitive(False)
+        self.menu.append(self.item_warn)
+
+        # Przyciski sterujące
+        self.btn_auth = Gtk.MenuItem(label="Authorize eGPU")
+        self.btn_auth.connect("activate", lambda *_: self.run_cmd(2))
+        self.menu.append(self.btn_auth)
+
+        self.btn_connect = Gtk.MenuItem(label="Connect eGPU (Hybrid Offload)")
+        self.btn_connect.connect("activate", lambda *_: self.run_cmd(3))
+        self.menu.append(self.btn_connect)
+
+        self.btn_dedic = Gtk.MenuItem(label="⚠ eGPU Only (disconnect iGPU) ⚠")
+        self.btn_dedic.connect("activate", lambda *_: self.run_cmd(4))
+        self.menu.append(self.btn_dedic)
+
+        self.btn_detach = Gtk.MenuItem(label="Safely Remove eGPU")
+        self.btn_detach.connect("activate", lambda *_: self.run_cmd(6))
+        self.menu.append(self.btn_detach)
+
+        self.btn_restore = Gtk.MenuItem(label="Connect iGPU (Restore)")
+        self.btn_restore.connect("activate", lambda *_: self.run_cmd(5))
+        self.menu.append(self.btn_restore)
+
+        self.item_info_final = Gtk.MenuItem(label="iGPU Active (Terminal State)")
+        self.item_info_final.set_sensitive(False)
+        self.menu.append(self.item_info_final)
+
+        # Ustawienia ekranu
+        self.menu.append(Gtk.SeparatorMenuItem())
+        self.item_display_settings = Gtk.MenuItem(label="Display Settings...")
+        self.item_display_settings.connect("activate", self.open_display_settings)
+        self.menu.append(self.item_display_settings)
+
+        # Wyjście
+        self.menu.append(Gtk.SeparatorMenuItem())
+        self.item_quit = Gtk.MenuItem(label="Exit (will close tray icon and daemon)")
+        self.item_quit.connect("activate", self.quit_app)
+        self.menu.append(self.item_quit)
+
+        self.menu.show_all()
 
     def poll_backend(self):
         while self.running:
@@ -135,7 +150,7 @@ class BlackwellTray(QSystemTrayIcon):
                 res = subprocess.run([CLI_PATH, "status"], capture_output=True, text=True)
                 if res.returncode == 0:
                     data = json.loads(res.stdout.strip())
-                    self.bridge.data_received.emit(data)
+                    GLib.idle_add(self.update_menu, data)
             except Exception:
                 pass
             time.sleep(2)
@@ -143,69 +158,43 @@ class BlackwellTray(QSystemTrayIcon):
     def update_menu(self, data):
         mode = data.get("mode", 0)
 
-        # Aktualizacja ikony stanu
+        # Ikona stanu
         if self.current_icon_mode != mode:
             self.current_icon_mode = mode
             if mode == 1:
-                self.setIcon(QIcon.fromTheme("dialog-warning"))
+                self.indicator.set_icon_full("dialog-warning", "Awaiting Authorization")
             else:
-                self.setIcon(QIcon.fromTheme("video-display"))
+                self.indicator.set_icon_full("video-display", "Blackwell eGPU")
 
-        # Ukrywanie elementów dynamicznych przed selektywnym włączeniem
-        self.act_device.setVisible(False)
-        self.act_box.setVisible(False)
-        self.act_auth.setVisible(False)
-        self.act_speed.setVisible(False)
-        self.act_status.setVisible(False)
-        self.sep_telemetry.setVisible(False)
-        self.act_usage.setVisible(False)
-        self.act_vram.setVisible(False)
-        self.act_transfer.setVisible(False)
-        self.act_temp.setVisible(False)
-        self.sep_actions.setVisible(False)
-        self.act_warn.setVisible(False)
-        self.act_btn_auth.setVisible(False)
-        self.act_btn_connect.setVisible(False)
-        self.act_btn_dedic.setVisible(False)
-        self.act_btn_detach.setVisible(False)
-        self.act_btn_restore.setVisible(False)
-        self.act_info_final.setVisible(False)
+        # Ukrywanie elementów dynamicznych
+        for widget in (
+            self.item_device, self.item_box, self.item_auth, self.item_speed, self.item_status,
+            self.sep_telemetry, self.item_usage, self.item_vram, self.item_transfer, self.item_temp,
+            self.sep_actions, self.item_warn, self.btn_auth, self.btn_connect, self.btn_dedic,
+            self.btn_detach, self.btn_restore, self.item_info_final
+        ):
+            widget.hide()
 
         # Mode 0: Rozłączone
         if mode == 0:
-            self.setToolTip(
-                f"{HEADER_TEXT}\n"
-                "eGPU:\n"
-                "Status: Disconnected\n"
-                "(LMB: Display Settings | RMB: Menu)"
-            )
-            self.act_status.setText("Status: Disconnected")
-            self.act_status.setEnabled(False)
-            self.act_status.setVisible(True)
+            self.item_status.set_label("Status: Disconnected")
+            self.item_status.set_sensitive(False)
+            self.item_status.show()
 
         # Mode 1: Podłączone / Oczekuje na autoryzację
         elif mode == 1:
             box = data.get("egpu") or "Thunderbolt/USB4 Device"
-            self.setToolTip(
-                f"{HEADER_TEXT}\n"
-                f"eGPU:\n"
-                f"Box: {box}\n"
-                f"Authorized: no\n"
-                f"Status: Awaiting Authorization\n"
-                f"(LMB: Display Settings | RMB: Menu)"
-            )
+            self.item_box.set_label(f"Box: {box}")
+            self.item_auth.set_label("Authorized: no")
+            self.item_speed.set_label("Speed: N/A")
+            self.item_status.set_label("Status: Awaiting Authorization")
 
-            self.act_box.setText(f"Box: {box}")
-            self.act_auth.setText("Authorized: no")
-            self.act_speed.setText("Speed: N/A")
-            self.act_status.setText("Status: Awaiting Authorization")
+            for it in (self.item_box, self.item_auth, self.item_speed, self.item_status):
+                it.set_sensitive(False)
+                it.show()
 
-            for act in (self.act_box, self.act_auth, self.act_speed, self.act_status):
-                act.setEnabled(False)
-                act.setVisible(True)
-
-            self.sep_actions.setVisible(True)
-            self.act_btn_auth.setVisible(True)
+            self.sep_actions.show()
+            self.btn_auth.show()
 
         # Mode 2: Gotowość / Zautoryzowano
         elif mode == 2:
@@ -218,27 +207,17 @@ class BlackwellTray(QSystemTrayIcon):
             else:
                 auth_str = "yes" if str(auth_val).lower() in ("1", "yes", "true", "tak") else "no"
 
-            self.setToolTip(
-                f"{HEADER_TEXT}\n"
-                f"eGPU:\n"
-                f"{box}\n"
-                f"Authorized: {auth_str}\n"
-                f"Speed: N/A\n"
-                f"Status: Standby (Ready)\n"
-                f"(LMB: Display Settings | RMB: Menu)"
-            )
+            self.item_box.set_label(f"{box}")
+            self.item_auth.set_label(f"Authorized: {auth_str}")
+            self.item_speed.set_label("Speed: N/A")
+            self.item_status.set_label("Status: Standby (Ready)")
 
-            self.act_box.setText(f"{box}")
-            self.act_auth.setText(f"Authorized: {auth_str}")
-            self.act_speed.setText("Speed: N/A")
-            self.act_status.setText("Status: Standby (Ready)")
+            for it in (self.item_box, self.item_auth, self.item_speed, self.item_status):
+                it.set_sensitive(False)
+                it.show()
 
-            for act in (self.act_box, self.act_auth, self.act_speed, self.act_status):
-                act.setEnabled(False)
-                act.setVisible(True)
-
-            self.sep_actions.setVisible(True)
-            self.act_btn_connect.setVisible(True)
+            self.sep_actions.show()
+            self.btn_connect.show()
 
         # Mode 3, 4, 5: Stany aktywne
         elif mode in (3, 4, 5):
@@ -255,7 +234,8 @@ class BlackwellTray(QSystemTrayIcon):
             else:
                 status_str = "Active"
 
-            gpu_util = data.get("gpu_util", data.get("usage", 0))
+            raw_util = str(data.get("gpu_util", data.get("usage", 0))).rstrip("%")
+            gpu_util = f"{raw_util}%"
 
             raw_pwr = data.get("pwr_curr", data.get("power", 0))
             try:
@@ -275,67 +255,47 @@ class BlackwellTray(QSystemTrayIcon):
 
             tx = data.get("pcie_tx", data.get("tx_throughput", 0))
             rx = data.get("pcie_rx", data.get("rx_throughput", 0))
-            tx_str = f"{tx} MB/s" if not str(tx).endswith("MB/s") else str(tx)
             rx_str = f"{rx} MB/s" if not str(rx).endswith("MB/s") else str(rx)
+            tx_str = f"{tx} MB/s" if not str(tx).endswith("MB/s") else str(tx)
             temp = str(data.get("temp", "0")).rstrip("°C") + "°C"
 
-            self.setToolTip(
-                f"{HEADER_TEXT}\n"
-                f"eGPU:\n"
-                f"{device}\n"
-                f"Box: {box}\n"
-                f"Authorized: yes\n"
-                f"Speed: {speed}\n"
-                f"Status: {status_str}\n"
-                f"Usage: {gpu_util}% ({power_str})\n"
-                f"VRAM: {vram_str}\n"
-                f"Temp: {temp}\n"
-                f"Transfer: ↓ {rx_str} | ↑ {tx_str}\n"
-                f"(LMB: Display Settings | RMB: Menu)"
-            )
+            self.item_device.set_label(f"{device}")
+            self.item_box.set_label(f"Box: {box}")
+            self.item_auth.set_label("Authorized: yes")
+            self.item_speed.set_label(f"Speed: {speed}")
+            self.item_status.set_label(f"Status: {status_str}")
 
-            self.act_device.setText(f"{device}")
-            self.act_box.setText(f"Box: {box}")
-            self.act_auth.setText("Authorized: yes")
-            self.act_speed.setText(f"Speed: {speed}")
-            self.act_status.setText(f"Status: {status_str}")
+            self.item_usage.set_label(f"Usage: {gpu_util} ({power_str})")
+            self.item_vram.set_label(f"VRAM: {vram_str}")
+            # RX (pobieranie / z eGPU) po lewej, TX (wysyłanie / do eGPU) po prawej
+            self.item_transfer.set_label(f"Transfer: ↓ {rx_str}   ↑ {tx_str}")
+            self.item_temp.set_label(f"Temp: {temp}")
 
-            self.act_usage.setText(f"Usage: {gpu_util}% ({power_str})")
-            self.act_vram.setText(f"VRAM: {vram_str}")
-            self.act_transfer.setText(f"Transfer: ↓ {rx_str}   ↑ {tx_str}")
-            self.act_temp.setText(f"Temp: {temp}")
+            for it in (self.item_device, self.item_box, self.item_auth, self.item_speed, self.item_status,
+                       self.item_usage, self.item_vram, self.item_transfer, self.item_temp):
+                it.set_sensitive(True)
+                it.show()
 
-            for act in (self.act_device, self.act_box, self.act_auth, self.act_speed, self.act_status,
-                        self.act_usage, self.act_vram, self.act_transfer, self.act_temp):
-                act.setEnabled(True)
-                act.setVisible(True)
-
-            self.sep_telemetry.setVisible(True)
-            self.sep_actions.setVisible(True)
+            self.sep_telemetry.show()
+            self.sep_actions.show()
 
             if mode == 3:
-                self.act_warn.setVisible(True)
-                self.act_btn_dedic.setVisible(True)
-                self.act_btn_detach.setVisible(True)
+                self.item_warn.show()
+                self.btn_dedic.show()
+                self.btn_detach.show()
             elif mode == 4:
-                self.act_btn_restore.setVisible(True)
+                self.btn_restore.show()
             elif mode == 5:
-                self.act_info_final.setVisible(True)
+                self.item_info_final.show()
 
         # Mode 6: Bezpieczne odłączanie
         elif mode == 6:
-            self.setToolTip(
-                f"{HEADER_TEXT}\n"
-                "eGPU:\n"
-                "Status: Detached / Safe to Unplug\n"
-                "(LMB: Display Settings | RMB: Menu)"
-            )
-            self.act_status.setText("Status: Detached / Safe to Unplug")
-            self.act_status.setEnabled(False)
-            self.act_status.setVisible(True)
+            self.item_status.set_label("Status: Detached / Safe to Unplug")
+            self.item_status.set_sensitive(False)
+            self.item_status.show()
+
+        return False
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
-    tray = BlackwellTray()
-    sys.exit(app.exec())
+    BlackwellTrayGTK()
+    Gtk.main()

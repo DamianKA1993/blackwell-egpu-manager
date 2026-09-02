@@ -2,6 +2,33 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.5.1] - 2026-09-02
+
+### Changed
+* **GNOME Shell Extension Architectural Rewrite (Full Rewrite):**
+  * The legacy v1.5.0 extension had critical architectural flaws and API incompatibilities that prevented it from functioning; the module was rewritten from scratch.
+  * **Dynamic State Engine (Modes 0–6):** Introduced dynamic view handling responding to bus states: disconnected (`Mode 0`), authorization (`Mode 1`), ready (`Mode 2`), active profiles (`Modes 3–5`), and safe disconnect preparation (`Mode 6`).
+  * **Real-Time Telemetry:** Implemented live eGPU hardware metrics: core load (`gpu_util`), board power draw (`pwr_curr`), memory footprint (`vram_used` / `vram_total`), and PCIe bus throughput.
+  * **PCIe Bus Metric Direction:** Standardized PCIe telemetry direction — download/read (`↓ RX`) on the left, upload/write (`↑ TX`) on the right, matching the native KDE Plasma plasmoid layout.
+  * **Dedicated Stylesheet (`stylesheet.css`):** Added a dedicated CSS stylesheet establishing uniform margins, fixed label widths, and clean panel typography.
+  * Tested on GNOME 50.4 with no stability or compatibility issues detected.
+
+* **Universal System Tray Architecture:**
+  * Replaced `PySide6` with native `PyGObject` bindings (`gi.repository` with `AyatanaAppIndicator3` / `AppIndicator3` and `Gtk 3.0`).
+  * Removed all `pip` and Qt-related dependencies — the tray runs out-of-the-box on clean GTK-based desktops (Cinnamon, XFCE, MATE, Ubuntu).
+  * Standardized PCIe bus rate indicators (`↓ RX` / `↑ TX`) to match the GNOME and KDE implementations.
+  * Tested and confirmed working reliably on Cinnamon and XFCE.
+  * Potentially compatible with other desktop environments supporting AppIndicator/SNI (MATE, LXQt, Budgie, COSMIC, Deepin/DDE, and tiling window manager bars like i3bar, Polybar, Waybar in Sway/Hyprland) — untested.
+
+* **Installer (`install.sh`) Improvements:**
+  * Replaced PySide6 validation logic with reliable `AyatanaAppIndicator3` / `Gtk 3.0` dependency checks.
+  * Streamlined GUI selection under KDE Plasma (native QML Plasmoid vs. headless CLI mode).
+  * Automated UUID registration into `dconf`/`gsettings` for new GNOME extension installations.
+  * Displayed a post-install prompt noting that a GNOME Shell restart (or session log out) is required for the new extension to appear on the top bar; the prompt warns about open application closures and defaults safely to "No".
+
+* **Uninstaller (`uninstall.sh`) Improvements:**
+  * Added instant extension deactivation (`gnome-extensions disable`), automated UUID removal from `org.gnome.shell enabled-extensions`, and a clean reset of the extension's dconf schema path.
+
 ## [1.5.0] - 2026-09-01
 
 > **Notice:** The GNOME Shell extension and Universal Tray applets are currently **experimental / test-only components**. Until comprehensive real-world validation across targeted environments is completed, these components are omitted from the main `README.md` documentation. Users should strictly follow the existing `README.md` instructions and rely exclusively on the **KDE Plasma applet** or the **core CLI backend** for stable operation.

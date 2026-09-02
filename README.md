@@ -4,6 +4,8 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ![update140](assets/preview1.png)
 
+![update152](assets/preview-gnome.png)
+
 ---
 
 ## ⚡ Prerequisites & System Requirements
@@ -26,6 +28,7 @@ Before using this project, please review the following hardware and system requi
    * Full functionality and automated polling are built for **KDE Plasma 6**.
    * The Plasma applet acts as the background daemon, querying the backend script every 2 seconds for real-time telemetry.
    * Headless / CLI-only usage is supported via terminal commands. (Community contributions for GNOME extensions or other DE applets are welcome).
+   * As of **v1.5.2**, dedicated **GNOME Shell** extension and **Universal GTK Tray** applets are available, though primary development remains focused on KDE Plasma and unexpected bugs may still occur in alternative frontends.
 
 5. **Driver Requirements (`nvidia-open`):**
    * Requires official **NVIDIA Open GPU Kernel Modules** (`nvidia-open`).

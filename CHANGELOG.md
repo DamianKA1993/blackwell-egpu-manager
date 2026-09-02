@@ -2,6 +2,13 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.5.2] - 2026-09-02
+
+### Changed
+* **GNOME Extension Polling Interval Alignment:**
+  * Adjusted the telemetry polling timer from 1 second to 2 seconds (`GLib.timeout_add_seconds`).
+  * Aligns the GNOME Shell update rate with the KDE Plasmoid and Universal Tray while preventing overlapping 2-second `nvidia-smi dmon` sampling cycles executed by the backend.
+
 ## [1.5.1] - 2026-09-02
 
 ### Changed

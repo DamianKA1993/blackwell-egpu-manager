@@ -23,7 +23,7 @@ const BlackwellIndicator = GObject.registerClass(
 
             this._buildQuickMenu();
 
-            this._timeoutSource = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
+            this._timeoutSource = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
                 this._fetchStatusAsync();
                 return GLib.SOURCE_CONTINUE;
             });

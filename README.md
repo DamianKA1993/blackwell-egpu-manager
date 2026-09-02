@@ -184,6 +184,20 @@ Transitions progress sequentially upwards to prevent driver race conditions, wit
 │
 └───> [6: Safe eGPU Detach] ───> (Back to 0 / 2)
 
+```mermaid
+graph TD
+    M0["0: Disconnected"] -->|Hot-Plug| M1["1: Cable Plugged"]
+    M1 -->|Enroll / Authorize| M2["2: Standby / Ready"]
+    M2 -->|Connect eGPU| M3["3: Hybrid Offload"]
+    
+    M3 -->|eGPU Only| M4["4: Dedicated eGPU"]
+    M4 -->|Restore iGPU| M5["5: Restore iGPU"]
+    M5 --> M3
+    
+    M3 -->|Safely Remove| M6["6: Safe Detach"]
+    M6 --> M2
+    M6 -->|Unplug| M0
+```
 
 ### 📋 State Breakdown
 

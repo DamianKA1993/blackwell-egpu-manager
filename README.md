@@ -4,10 +4,6 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ![update140](assets/preview1.png)
 
-<p align="center">
-  <img src="assets/preview-gnome.png" alt="update152" width="280">
-</p>
-
 ---
 
 ## ⚡ Prerequisites & System Requirements
@@ -77,6 +73,12 @@ Deterministic
 * **KDE Display Settings Integration**: Instant one-click launcher for KDE Screen Management (`kcm_kscreen`) directly from the widget.
 * **Modular Interactive Installer & Uninstaller**: Clean Bash wizards with optional udev rule management, sudoers configuration, and desktop widget deployment.
 * **Native KDE Plasma 6 Applet**: Standalone Plasmoid with fixed proportions (24x24 gridUnit), live link-speed badge, and vertically centered control buttons.
+* **Native GNOME Shell Extension (v1.5.2+)**: Fully rewritten GJS top-bar extension with a dynamic state engine, custom CSS styling, and asynchronous 2-second telemetry polling.
+* **Universal System Tray Applet (v1.5.2+)**: Lightweight native PyGObject (GTK 3 / AyatanaAppIndicator) tray client running out-of-the-box on Cinnamon, XFCE, MATE, and tiling window managers.
+
+<p align="center">
+  <img src="assets/preview-gnome.png" alt="update152" width="280">
+</p>
 
 ---
 

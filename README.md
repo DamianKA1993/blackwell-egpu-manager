@@ -4,8 +4,6 @@ Automated PCIe Gen4/Gen5 hardware state management, USB4 link negotiation, and d
 
 ![update140](assets/preview1.png)
 
-![update152](assets/preview-gnome.png)
-
 <p align="center">
   <img src="assets/preview-gnome.png" alt="update152" width="300">
 </p>

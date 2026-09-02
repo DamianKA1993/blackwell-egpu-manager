@@ -25,7 +25,7 @@ Before using this project, please review the following hardware and system requi
 4. **Desktop Environment & Daemon Architecture:**
    * Full functionality and automated polling are built for **KDE Plasma 6**.
    * The Plasma applet acts as the background daemon, querying the backend script every 2 seconds for real-time telemetry.
-   * Headless / CLI-only usage is supported via terminal commands. (Community contributions for GNOME extensions or other DE applets are welcome).
+   * Headless / CLI-only usage is supported via terminal commands.
    * As of **v1.5.2**, dedicated **GNOME Shell** extension and **Universal GTK Tray** applets are available, though primary development remains focused on KDE Plasma and unexpected bugs may still occur in alternative frontends.
 
 5. **Driver Requirements (`nvidia-open`):**

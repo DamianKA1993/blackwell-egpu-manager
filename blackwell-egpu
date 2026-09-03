@@ -209,7 +209,7 @@ set2() {
 set3() {
     # Mode 3: Hybrid mode (iGPU + eGPU / load NVIDIA modules, PCIe retraining)
     # Mode 3: Tryb hybrydowy (iGPU + eGPU / moduły nvidia, retraining PCIe)
-    if ! lsmod | grep -q "^nvidia "; then
+    if ! lspci -d 10de: -nn 2>/dev/null | grep -q -iE "VGA|3D"; then
         fuser -k /dev/nvidia* >/dev/null 2>&1 || true
         modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia >/dev/null 2>&1 || true
 
@@ -222,7 +222,15 @@ set3() {
         fi
 
         touch /tmp/egpu_allow
+
+        # 1. Obudź wszystkie mostki Root Port bezpośrednio na szynie głównej procesora (Intel i AMD)
+        for rp in /sys/bus/pci/devices/0000:00:*.*/rescan; do
+            [ -f "$rp" ] && echo 1 > "$rp" 2>/dev/null || true
+        done
+
+        # 2. Globalny rescan szyny PCIe (dla Hot-Plug i propagacji w dół)
         echo 1 > /sys/bus/pci/rescan 2>/dev/null || true
+
         udevadm settle --timeout=2 2>/dev/null || true
         rm -f /tmp/egpu_allow
 

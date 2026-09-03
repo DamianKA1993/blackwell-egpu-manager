@@ -2,6 +2,26 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.5.3] - 2026-09-03
+
+### 🔧 Fixes & Improvements
+
+* **Hardware-based GPU presence check (`lspci` over `lsmod`):**
+  * Replaced module loading verification (`lsmod | grep "^nvidia "`) with direct PCI bus detection: `lspci -d 10de: -nn | grep -iE "VGA|3D"`.
+  * Prevents erroneously skipping the bus rescan and `setpci` retraining sequence when NVIDIA kernel modules are loaded prematurely into RAM during cold boot.
+
+* **Direct Root Port wake-up via sysfs:**
+  * Added a targeted rescan loop for processor Root Ports (`/sys/bus/pci/devices/0000:00:*.*/rescan`) executed prior to the global bus rescan.
+  * Forces host controller ports from the runtime `suspended` state (D3) to `active` (D0), resolving missing USB4/Thunderbolt tunnel enumeration during cold boot on Intel platforms (e.g., Tiger Lake).
+
+* **Preserved AMD Mini PC & Hot-Plug compatibility:**
+  * Uses the flexible `0000:00:*.*/rescan` pattern guarded by `[ -f "$rp" ]`, avoiding any hardcoded Intel bus IDs (such as `00:07.*`).
+  * Retains the fallback `echo 1 > /sys/bus/pci/rescan`, ensuring seamless enumeration on AMD systems and immediate device detection during on-the-fly Hot-Plug events.
+
+* **Zero kernel boot parameters (Zero Kernel Flags):**
+  * Fully functional on the default stock kernel without requiring any custom flags or parameters in the bootloader cmdline.
+  * Port wake-up,link retraining, and runtime power management are stil handled entirely within user space.
+
 ## [1.5.2] - 2026-09-02
 
 ### Changed

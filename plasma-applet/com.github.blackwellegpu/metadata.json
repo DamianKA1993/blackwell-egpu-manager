@@ -11,7 +11,7 @@
         "Icon": "video-display",
         "Id": "com.github.blackwellegpu",
         "Name": "Blackwell eGPU Manager",
-        "Version": "1.5.2",
+        "Version": "1.5.3",
         "Website": "https://github.com/DamianKA1993/blackwell-egpu-manager"
     },
     "X-Plasma-API-Minimum-Version": "6.0",

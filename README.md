@@ -47,7 +47,8 @@ chmod +x install.sh uninstall.sh
 
 ## 💡 Important Notes (Intel Platform & First-Time Setup)
 
-* **Intel Cold-Plug Warning**: On Intel host platforms, connecting the eGPU before powering on the system (cold-plug) may cause PCIe bridge enumeration conflicts, leading to applet initialization errors (such as NVML failing to detect the GPU in early boot). It is strongly recommended to connect/power on the eGPU after the system has fully booted into the desktop.
+* ~~**Intel Cold-Plug Warning**: On Intel host platforms, connecting the eGPU before powering on the system (cold-plug) may cause PCIe bridge enumeration conflicts, leading to applet initialization errors (such as NVML failing to detect the GPU in early boot). It is strongly recommended to connect/power on the eGPU after the system has fully booted into the desktop.~~  
+  **Resolved in v1.5.3**: Cold boot on Intel platforms is now fully supported out of the box. The script automatically wakes up suspended host bridge Root Ports via sysfs, enabling seamless USB4/Thunderbolt tunnel enumeration regardless of when the enclosure is plugged in. Crucially, the entire setup still adheres to the zero-kernel-flags philosophy—no workaround bootloader parameters (such as `pcie_port_pm=off` or `pci=noaer`) are required.
 * **Post-Installation Reboot**: The installer deploys custom udev rules to prevent PCIe link stalls and improper driver auto-binding. A **system reboot is required** after running `install.sh` for these rules to fully take effect and ensure a clean, fixed link negotiation.
 
 ![update](assets/preview.png)

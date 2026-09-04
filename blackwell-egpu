@@ -433,45 +433,52 @@ set5() {
 
 set6() {
     # Mode 6: Safe eGPU Detach without killing Wayland session compositor
-    # Mode 6: Bezpieczne odpięcie eGPU bez ubijania kompozytora Wayland
+    # Mode 6: Bezpieczne odpięcie eGPU z jawną rewokacją węzłów DRM dla Waylanda
 
-    # 1. Clear persistent flags first
+    # 1. Czyszczenie cache i flag stanu
     rm -f "$EGPU_ONLY_FILE" "$LINK_FILE" "$EGPU2_FILE" "$TRAFFIC_CACHE"
 
-    # 2. Verify iGPU presence before dropping eGPU
-    local igpu_present
-    igpu_present=$(lspci -nn 2>/dev/null | grep -iE "VGA|3D" | grep -iE "1002:|8086:" | head -n1 || true)
-    if [ -z "$igpu_present" ]; then
-        echo 1 > /sys/bus/pci/rescan 2>/dev/null || true
-        udevadm settle --timeout=2 2>/dev/null || true
-    fi
-
-    # 3. Trigger DRM change event
-    udevadm trigger --subsystem-match=drm --action=change 2>/dev/null || true
-    udevadm settle --timeout=1 2>/dev/null || true
-
-    # 4. Safely remove NVIDIA PCIe device functions
     local GPU_FULL_PCI
     GPU_FULL_PCI=$(lspci -D -d 10de: -nn 2>/dev/null | grep -iE "VGA|3D" | awk '{print $1}' | head -n 1 || true)
+
     if [ -n "${GPU_FULL_PCI:-}" ]; then
-        local GPU_SLOT="${GPU_FULL_PCI%.*}"
-        for dev in "/sys/bus/pci/devices/${GPU_SLOT}".*; do
-            if [ -d "$dev" ] && [ -w "$dev/remove" ]; then
-                echo 1 > "$dev/remove" 2>/dev/null || true
+        # 2. Poinformuj KWin / Wayland o usunięciu węzłów DRM karty NVIDIA
+        for drm_node in /sys/bus/pci/devices/"$GPU_FULL_PCI"/drm/*; do
+            if [ -d "$drm_node" ]; then
+                local node_name
+                node_name=$(basename "$drm_node")
+                udevadm trigger --action=remove --sysname-match="$node_name" 2>/dev/null || true
             fi
         done
+
+        # 3. Daj kompozytorowi czas na przetworzenie zdarzenia
+        udevadm settle --timeout=1 2>/dev/null || true
+        sleep 0.2
+
+        # 4. Bezpiecznie usuń urządzenia powiązane z eGPU (TYLKO urządzenia NVIDIA 10de)
+        local GPU_SLOT="${GPU_FULL_PCI%.*}"
+
+        # Najpierw audio HDMI NVIDII i inne podrzędne funkcje eGPU
+        for dev in "/sys/bus/pci/devices/${GPU_SLOT}".*; do
+            if [ "$dev" != "/sys/bus/pci/devices/$GPU_FULL_PCI" ] && [ -w "$dev/remove" ]; then
+                local vendor=""
+                vendor=$(cat "$dev/vendor" 2>/dev/null || true)
+                if [ "$vendor" = "0x10de" ]; then
+                    echo 1 > "$dev/remove" 2>/dev/null || true
+                fi
+            fi
+        done
+
+        # Na końcu sam kontroler graficzny
+        if [ -w "/sys/bus/pci/devices/$GPU_FULL_PCI/remove" ]; then
+            echo 1 > "/sys/bus/pci/devices/$GPU_FULL_PCI/remove" 2>/dev/null || true
+        fi
     fi
 
-    # 5. Settle udev queue
+    # 5. Synchronizacja kolejki udev
     udevadm settle --timeout=2 2>/dev/null || true
 
-    # 6. Softly unload NVIDIA modules
-    modprobe -r nvidia_uvm nvidia_drm nvidia_modeset nvidia >/dev/null 2>&1 || true
-
-    # 7. Reset wait state
     echo "0" > "$WAIT_FILE"
-
-    # Clean single-digit return value
     echo "2"
 }
 

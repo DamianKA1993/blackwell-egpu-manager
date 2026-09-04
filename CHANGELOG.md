@@ -2,6 +2,24 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.5.4] - 2026-09-04
+
+### 🔧 Fixes & Improvements
+
+* **Reliable Wayland Safe Detach (Mode 6 Architectural Fix):**
+  * Replaced passive DRM `change` uevents and problematic runtime module unloading (`modprobe -r`) with targeted synthetic DRM device removal (`udevadm trigger --action=remove`).
+  * Explicitly triggers removal directly on NVIDIA DRM sysfs nodes (`/sys/bus/pci/devices/$GPU_FULL_PCI/drm/*`), forcing the Wayland compositor (KWin) and `libseat` to gracefully revoke access and close open DRM file descriptors (`/dev/dri/cardX`, `renderD12X`).
+  * Completely eliminates Wayland compositor freezes, SIGBUS aborts, and unkillable kernel D-state I/O hangs when transitioning from Mode 3 back to Mode 2.
+  * Verified rock-solid stability and zero-crash hot-unplug transitions across both AMD (HawkPoint) and Intel mobile platforms.
+
+* **Targeted eGPU Function Removal with Vendor Guard:**
+  * Replaced indiscriminate PCIe sub-function teardown with a strict vendor-checked removal loop (`cat $dev/vendor == "0x10de"`).
+  * Ensures that only eGPU-owned auxiliary hardware (such as NVIDIA HDMI/DP Audio endpoints) is unlinked from the PCIe bus during teardown, leaving host motherboard controllers and processor bridge hierarchies completely untouched.
+
+* **Synchronized Teardown Handshake:**
+  * Introduced explicit settling barriers (`udevadm settle` + 200 ms timing window) between DRM node revocation and physical PCIe device removal (`$dev/remove`).
+  * Guarantees the compositor has fully migrated rendering pipelines and buffers back to the internal GPU before the hardware link is severed.
+
 ## [1.5.3] - 2026-09-03
 
 ### 🔧 Fixes & Improvements

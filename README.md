@@ -51,6 +51,8 @@ chmod +x install.sh uninstall.sh
   **Resolved in v1.5.3**: Cold boot on Intel platforms is now fully supported out of the box. The script automatically wakes up suspended host bridge Root Ports via sysfs, enabling seamless USB4/Thunderbolt tunnel enumeration regardless of when the enclosure is plugged in. Crucially, the entire setup still adheres to the zero-kernel-flags philosophy—no workaround bootloader parameters (such as `pcie_port_pm=off` or `pci=noaer`) are required.
 * **Post-Installation Reboot**: The installer deploys custom udev rules to prevent PCIe link stalls and improper driver auto-binding. A **system reboot is required** after running `install.sh` for these rules to fully take effect and ensure a clean, fixed link negotiation.
 
+> **Note:** For known hardware quirks and in-progress fixes across different platforms, see [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
+
 ![update](assets/preview.png)
 
 ---

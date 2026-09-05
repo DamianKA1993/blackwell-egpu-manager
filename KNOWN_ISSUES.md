@@ -24,3 +24,5 @@ This document tracks known limitations, hardware-specific edge cases, and in-pro
   When entering `Mode 3`, the appearance of the NVIDIA HDMI/DP audio controller may cause PipeWire/WirePlumber to switch default sink routing or rename active speaker endpoints, though the internal audio device remains active and fully functional throughout `Mode 3`. Subsequently, after executing `Mode 6` (Safe Detach), the internal laptop audio device disappears entirely from the system's output list.
 * **Current Workaround:**
   A full system reboot is currently required to restore the internal audio device after detaching the eGPU.
+* **Update Observation:**
+  This issue occurs exclusively when an external monitor is physically connected directly to the eGPU display outputs. If the eGPU is used solely for offscreen rendering/compute without an external monitor attached, this audio disappearance issue does not occur at all.

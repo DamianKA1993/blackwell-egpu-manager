@@ -2,6 +2,16 @@
 
 All notable changes to the Blackwell eGPU Universal Manager project will be documented in this file.
 
+## [1.5.5] - 2026-09-05
+
+### Added
+* **Mode 6 (Safe Detach) – Selective Application Termination:** Implemented two-stage detection and termination for client processes actively rendering or computing on the eGPU using `nvidia-smi pmon` (`SIGTERM`, followed by `SIGKILL` on subsequent invocation).
+* **Two-Step Detach Protection:** When invoking Safe Detach (via applet or CLI), a graceful `SIGTERM` is issued first. If applications fail to exit in time, the card **is not removed** from the PCIe bus; a second invocation of `set 6` is required to force termination via `SIGKILL` and safely complete the detach sequence.
+* **Compositor & Session Safety:** Targeted process handling strictly isolates client applications running on the eGPU without terminating Wayland, KWin, or the user desktop session.
+
+### Changed
+* **Mode 6 (Safe Detach) Audio Teardown Removal:** Completely removed the automatic eGPU audio teardown routine — it did not resolve quirks on Intel platforms and could cause audio output drops (such as USB DACs and soundbars disappearing) on other hardware configurations.
+
 ## [1.5.4] - 2026-09-04
 
 ### 🔧 Fixes & Improvements

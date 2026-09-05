@@ -14,6 +14,7 @@ LINK_FILE="$CACHE_DIR/pcie_link"
 EGPU_ONLY_FILE="$CACHE_DIR/egpu_only"
 IGPU_PARENT_FILE="$CACHE_DIR/igpu_parent_bridge"
 TRAFFIC_CACHE="$CACHE_DIR/traffic"
+FORCE_KILL_FILE="$CACHE_DIR/force_kill"
 
 ACTION="${1:-status}"
 TARGET_MODE="${2:-}"
@@ -76,7 +77,7 @@ TB_DEVICE=$(ls -d /sys/bus/thunderbolt/devices/*-* 2>/dev/null | grep -vE -- '-0
 if [ -z "$TB_DEVICE" ]; then
     echo "0" > "$STATE_FILE"
     echo "0" > "$WAIT_FILE"
-    rm -f "$EGPU_FILE" "$EGPU2_FILE" "$LINK_FILE" "$EGPU_ONLY_FILE" "$TRAFFIC_CACHE"
+    rm -f "$EGPU_FILE" "$EGPU2_FILE" "$LINK_FILE" "$EGPU_ONLY_FILE" "$TRAFFIC_CACHE" "$FORCE_KILL_FILE"
 
     if [ "$ACTION" = "status" ]; then
         IGPU_NAME=$(cat "$IGPU_FILE" 2>/dev/null | tr -d '"' || echo "Integrated Graphics")
@@ -433,9 +434,44 @@ set5() {
 
 set6() {
     # Mode 6: Safe eGPU Detach without killing Wayland session compositor
-    # Mode 6: Bezpieczne odpięcie eGPU z jawną rewokacją węzłów DRM dla Waylanda
+    # Mode 6: Bezpieczne odpięcie eGPU z automatycznym zamykaniem aplikacji klienckich
 
-    # 1. Czyszczenie cache i flag stanu
+    # 1. Pobierz aktywne PID-y aplikacji (C/G) bezpośrednio z nvidia-smi pmon
+    local ACTIVE_PIDS
+    ACTIVE_PIDS=$(nvidia-smi pmon -c 1 2>/dev/null | awk '$3 ~ /^[CG]/ {print $2}' | grep -E '^[0-9]+$' || true)
+
+    if [ -n "$ACTIVE_PIDS" ]; then
+        local SIGNAL=15
+        if [ -f "$FORCE_KILL_FILE" ]; then
+            SIGNAL=9
+            rm -f "$FORCE_KILL_FILE"
+        fi
+
+        for pid in $ACTIVE_PIDS; do
+            kill -"$SIGNAL" "$pid" 2>/dev/null || true
+        done
+
+        if [ "$SIGNAL" -eq 9 ]; then
+            sleep 0.5
+        else
+            sleep 1.5
+        fi
+
+        # Weryfikacja: czy procesy zamknęły się i zwolniły eGPU
+        local REMAINING_PIDS
+        REMAINING_PIDS=$(nvidia-smi pmon -c 1 2>/dev/null | awk '$3 ~ /^[CG]/ {print $2}' | grep -E '^[0-9]+$' || true)
+
+        if [ -n "$REMAINING_PIDS" ]; then
+            touch "$FORCE_KILL_FILE"
+            echo "0" > "$WAIT_FILE"
+            echo "3"
+            return 0
+        fi
+    fi
+
+    rm -f "$FORCE_KILL_FILE"
+
+    # 2. Czyszczenie cache i flag stanu
     rm -f "$EGPU_ONLY_FILE" "$LINK_FILE" "$EGPU2_FILE" "$TRAFFIC_CACHE"
 
     local GPU_FULL_PCI
@@ -455,19 +491,6 @@ set6() {
         udevadm settle --timeout=1 2>/dev/null || true
         sleep 0.2
 
-        # 4. Bezpiecznie usuń urządzenia powiązane z eGPU (TYLKO urządzenia NVIDIA 10de)
-        local GPU_SLOT="${GPU_FULL_PCI%.*}"
-
-        # Najpierw audio HDMI NVIDII i inne podrzędne funkcje eGPU
-        for dev in "/sys/bus/pci/devices/${GPU_SLOT}".*; do
-            if [ "$dev" != "/sys/bus/pci/devices/$GPU_FULL_PCI" ] && [ -w "$dev/remove" ]; then
-                local vendor=""
-                vendor=$(cat "$dev/vendor" 2>/dev/null || true)
-                if [ "$vendor" = "0x10de" ]; then
-                    echo 1 > "$dev/remove" 2>/dev/null || true
-                fi
-            fi
-        done
 
         # Na końcu sam kontroler graficzny
         if [ -w "/sys/bus/pci/devices/$GPU_FULL_PCI/remove" ]; then
